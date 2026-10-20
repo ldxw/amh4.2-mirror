@@ -610,6 +610,8 @@ function InstallNginx()
 
 	if [ ! -d /usr/local/nginx ]; then
 		cd $AMHDir/packages/untar/$NginxVersion;
+		# glibc 2.28+ 的 struct crypt_data 已经没有 current_salt 字段，删掉这行才编得过
+		sed -i '/cd\.current_salt\[0\] = ~salt\[0\];/d' src/os/unix/ngx_user.c 2>/dev/null || true;
 		./configure --prefix=/usr/local/nginx --user=www --group=www --with-http_ssl_module  --with-http_gzip_static_module --without-mail_pop3_module --without-mail_imap_module --without-mail_smtp_module --without-http_uwsgi_module --without-http_scgi_module --with-ipv6 --with-stream --with-http_v2_module --with-openssl=/usr/local/openssl-1.0.2d --add-module=$AMHDir/packages/untar/$NginxCachePurgeVersion;
 		cd /usr/local/$OpenSSLVersion;
 		./config;
