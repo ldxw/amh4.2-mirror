@@ -1,5 +1,6 @@
-# 安装包本体走 Release 附件，不进仓库（避免历史里塞上百 MB 二进制）
+# 解压出来的源码树和打包产物都很大，不进 git；只跟踪脚本和说明
+src/
+dist/
 *.tar.gz
 *.zip
 *.zip.bf
-SHA256SUMS
