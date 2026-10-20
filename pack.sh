@@ -19,7 +19,8 @@ with zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED, compresslevel=9) as z:
         dirs.sort()
         for name in sorted(files):
             full = os.path.join(root, name)
-            z.write(full, os.path.relpath(full, "src"))
+            # 包内不带顶层目录：conf.zip 里应该是 BRftp、my.cnf 这一级
+            z.write(full, os.path.relpath(full, os.path.join("src", src)))
 PY
 }
 

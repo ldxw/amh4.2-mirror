@@ -23,21 +23,33 @@ Acquire::Retries "3";
 EOF
             ;;
         *)
-            echo "[setup] 使用官方源（deb.debian.org）"
-            cat > /etc/apt/sources.list <<EOF
+            # Debian 12+ 自带 deb822 格式的 /etc/apt/sources.list.d/debian.sources，
+            # 再往 sources.list 里写就会重复，apt 会一直警告
+            if [ -f /etc/apt/sources.list.d/debian.sources ]; then
+                echo "[setup] 已存在 debian.sources（deb822），沿用系统自带源"
+                : > /etc/apt/sources.list
+            else
+                echo "[setup] 使用官方源（deb.debian.org）"
+                cat > /etc/apt/sources.list <<EOF
 deb http://deb.debian.org/debian ${VERSION_CODENAME:-bookworm} main contrib non-free non-free-firmware
 deb http://deb.debian.org/debian ${VERSION_CODENAME:-bookworm}-updates main contrib non-free non-free-firmware
 deb http://security.debian.org/debian-security ${VERSION_CODENAME:-bookworm}-security main contrib non-free non-free-firmware
 EOF
+            fi
             ;;
     esac
 elif [ "${ID:-}" = "ubuntu" ]; then
-    echo "[setup] 使用官方源（archive.ubuntu.com）"
-    cat > /etc/apt/sources.list <<EOF
+    if [ -f /etc/apt/sources.list.d/ubuntu.sources ]; then
+        echo "[setup] 已存在 ubuntu.sources（deb822），沿用系统自带源"
+        : > /etc/apt/sources.list
+    else
+        echo "[setup] 使用官方源（archive.ubuntu.com）"
+        cat > /etc/apt/sources.list <<EOF
 deb http://archive.ubuntu.com/ubuntu ${VERSION_CODENAME:-jammy} main restricted universe multiverse
 deb http://archive.ubuntu.com/ubuntu ${VERSION_CODENAME:-jammy}-updates main restricted universe multiverse
 deb http://security.ubuntu.com/ubuntu ${VERSION_CODENAME:-jammy}-security main restricted universe multiverse
 EOF
+    fi
 fi
 
 echo "[setup] apt-get update"

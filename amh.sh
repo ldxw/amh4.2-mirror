@@ -146,26 +146,28 @@ function ConfirmInstall()
   function GetServerIP()
   {
 	local ip='';
+	local lan='';
 
-	# 1) 默认路由出口网卡的地址（容器/云主机都准）
+	# 本机地址（拿不到公网 IP 时兜底）
 	if command -v ip >/dev/null 2>&1; then
-		ip=`ip -4 route get 1.1.1.1 2>/dev/null | awk '{for(i=1;i<=NF;i++) if($i=="src"){print $(i+1); exit}}'`;
+		lan=`ip -4 route get 1.1.1.1 2>/dev/null | awk '{for(i=1;i<=NF;i++) if($i=="src"){print $(i+1); exit}}'`;
+	fi;
+	if [ -z "$lan" ] && command -v hostname >/dev/null 2>&1; then
+		lan=`hostname -I 2>/dev/null | awk '{print $1}'`;
+	fi;
+	if [ -z "$lan" ] && command -v ifconfig >/dev/null 2>&1; then
+		lan=`ifconfig 2>/dev/null | awk '/inet /{print $2}' | sed 's/addr://' | grep -vE '^127\.' | head -1`;
 	fi;
 
-	# 2) hostname -I
-	if [ -z "$ip" ] && command -v hostname >/dev/null 2>&1; then
-		ip=`hostname -I 2>/dev/null | awk '{print $1}'`;
-	fi;
+	# 面板一般从外网访问，优先取公网 IP
+	for svc in https://api.ipify.org https://ifconfig.me/ip https://ip.sb; do
+		ip=`curl -s --max-time 5 "$svc" 2>/dev/null | head -1 | tr -d '\r\n '`;
+		echo "$ip" | grep -qE '^[0-9]{1,3}(\.[0-9]{1,3}){3}$' && break;
+		ip='';
+	done;
 
-	# 3) 老式 ifconfig
-	if [ -z "$ip" ] && command -v ifconfig >/dev/null 2>&1; then
-		ip=`ifconfig 2>/dev/null | awk '/inet /{print $2}' | sed 's/addr://' | grep -vE '^127\.' | head -1`;
-	fi;
-
-	# 4) 都不行就问外部服务
-	if [ -z "$ip" ]; then
-		ip=`curl -s --max-time 5 https://api.ipify.org 2>/dev/null`;
-	fi;
+	# 拿不到公网地址就用本机地址
+	[ -z "$ip" ] && ip="$lan";
 
 	echo "$ip";
   }
@@ -195,27 +197,43 @@ function ConfirmInstall()
 	read -p '[Notice] MySQL password (回车 = 自动生成随机密码):' MysqlPass;
 
 	if [ "$MysqlPass" == '' ]; then
-		# 16 位大小写字母 + 数字，去掉容易混淆的 0/O/1/l/I
+		# 自动生成：只问一次
 		MysqlPass=`tr -dc 'A-Za-z0-9' < /dev/urandom | tr -d '0O1lI' | head -c 16`;
 		echo "[OK] 已生成随机 MySQL 密码: ${MysqlPass}";
 	else
+		# 手输：再确认一次
+		read -p '[Notice] 请再输入一次 MySQL 密码:' MysqlPass2;
+		if [ "$MysqlPass" != "$MysqlPass2" ]; then
+			echo '[Error] 两次输入不一致，请重新设置。';
+			MysqlPass='';
+			InputMysqlPass;
+			return;
+		fi;
 		echo '[OK] Your MySQL password is:';
 		echo "$MysqlPass";
 	fi;
   }
 
 
-function InputAMHPass()
-{
-	read -p '[Notice] Please input AMH password:' AMHPass;
+  function InputAMHPass()
+  {
+	read -p '[Notice] AMH 面板密码 (回车 = 自动生成随机密码):' AMHPass;
+
 	if [ "$AMHPass" == '' ]; then
-		echo '[Error] AMH password empty.';
-		InputAMHPass;
+		AMHPass=`tr -dc 'A-Za-z0-9' < /dev/urandom | tr -d '0O1lI' | head -c 16`;
+		echo "[OK] 已生成随机 AMH 面板密码: ${AMHPass}";
 	else
+		read -p '[Notice] 请再输入一次 AMH 面板密码:' AMHPass2;
+		if [ "$AMHPass" != "$AMHPass2" ]; then
+			echo '[Error] 两次输入不一致，请重新设置。';
+			AMHPass='';
+			InputAMHPass;
+			return;
+		fi;
 		echo '[OK] Your AMH password is:';
-		echo $AMHPass;
+		echo "$AMHPass";
 	fi;
-}
+  }
 
 
 function Timezone()
@@ -331,10 +349,10 @@ function InstallReady()
 {
 	mkdir -p $AMHDir/conf;
 	mkdir -p $AMHDir/packages/untar;
-	chmod +Rw $AMHDir/packages;
+	chmod -R u+w $AMHDir/packages;
 
 	mkdir -p /root/amh/;
-	chmod +Rw /root/amh;
+	chmod -R u+w /root/amh;
 
 	cd $AMHDir/packages;
 	wget ${WGET_IRI} $DOWNLOAD_BASE_URL/conf.zip;
