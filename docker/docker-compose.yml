@@ -1,0 +1,34 @@
+services:
+  amh:
+    # AMH 4.2 是 2014 年的面板，配 Debian 8（jessie）最贴近那个年代
+    # 注意：debian:7 的 bash 在新内核（6.x）上会直接段错误退出，别用
+    image: ${AMH_IMAGE:-debian:8}
+    container_name: ${AMH_NAME:-amh-test}
+    hostname: amh
+    privileged: true
+
+    # 老容器的源全部失效，先用脚本换成 archive 源并装好基础工具
+    command: ["/bin/bash", "/opt/base-setup.sh"]
+
+    environment:
+      TZ: Asia/Shanghai
+      # Debian 8 默认 POSIX locale 会让 wget 改写签名下载地址，这里固定 UTF-8
+      LANG: C.UTF-8
+      LC_ALL: C.UTF-8
+      # 跳过安装包选择：留空则交互选择，填标签则直接用该构建
+      AMH_PACKAGE: ${AMH_PACKAGE:-}
+
+    ports:
+      - "8888:8888"   # AMH 面板
+      - "80:80"       # 站点
+      - "21:21"       # FTP
+
+    volumes:
+      - ./base-setup.sh:/opt/base-setup.sh:ro
+      - ../amh.sh:/root/amh.sh:ro
+      - ./data:/data
+
+    restart: "no"
+
+    # 1G 内存编译 MySQL/PHP 容易 OOM，加个交换分区兜底
+    mem_limit: 2g

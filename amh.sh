@@ -43,6 +43,10 @@ PACKAGE_REPO='ldxw/amh4.5-mirror';
 PACKAGE_TAG='';
 DOWNLOAD_BASE_URL='';
 
+# wget 在新 locale 下会改写含签名的下载地址导致 403，能禁 IRI 就禁掉
+WGET_IRI='';
+wget --help 2>/dev/null | grep -q -- '--no-iri' && WGET_IRI='--no-iri';
+
 # Function List	*****************************************************************************
 function CheckSystem()
 {
@@ -205,7 +209,7 @@ function Downloadfile()
 		echo "[OK] $1 found.";
 	else
 		echo "[Notice] $1 not found, download now......";
-		if ! wget -c --tries=3 ${2}?${randstr} ; then
+		if ! wget -c --tries=3 ${WGET_IRI} ${2}?${randstr} ; then
 			echo "[Error] Download Failed : $1, please check $2 ";
 			exit;
 		else
@@ -224,7 +228,7 @@ function InstallReady()
 	chmod +Rw /root/amh;
 
 	cd $AMHDir/packages;
-	wget $DOWNLOAD_BASE_URL/conf.zip;
+	wget ${WGET_IRI} $DOWNLOAD_BASE_URL/conf.zip;
 	unzip conf.zip -d $AMHDir/conf;
 }
 
