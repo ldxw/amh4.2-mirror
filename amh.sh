@@ -380,7 +380,7 @@ function InstallMysql()
 		groupadd mysql;
 		useradd -s /sbin/nologin -g mysql mysql;
 		cmake -DCMAKE_INSTALL_PREFIX=/usr/local/mysql  -DDEFAULT_CHARSET=utf8 -DDEFAULT_COLLATION=utf8_general_ci -DWITH_EXTRA_CHARSETS=complex -DWITH_READLINE=1 -DENABLED_LOCAL_INFILE=1 \
-			-DCMAKE_C_FLAGS="$CFLAGS" -DCMAKE_CXX_FLAGS="$CXXFLAGS -std=gnu++98" -DWITH_SSL=yes;
+			-DCMAKE_C_FLAGS="$CFLAGS" -DCMAKE_CXX_FLAGS="$CXXFLAGS -std=gnu++98";
 		#http://forge.mysql.com/wiki/Autotools_to_CMake_Transition_Guide
 		make -j $Cpunum;
 		make install;

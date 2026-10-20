@@ -112,3 +112,22 @@ sha256sum -c SHA256SUMS
 4. 同时上传构建产物（保留 14 天）
 
 也可以手动跑：仓库 → Actions → `pack` → Run workflow。
+
+## 支持的系统
+
+`amh.sh` 用 `/etc/os-release` 识别发行版，安装依赖时按 `apt` / `dnf`、`yum` 分成两套：
+
+| 系统 | 包管理器 | 说明 |
+|---|---|---|
+| Debian 9 ~ 12 | apt | 现代包名（`libncurses-dev`、`libjpeg-dev`、`libfreetype-dev`…） |
+| Ubuntu 18.04 ~ 24.04 | apt | 同上 |
+| CentOS 7 | yum | 走 RHEL 分支 |
+| CentOS Stream / Rocky / AlmaLinux 8 ~ 9 | dnf | 自动装 `epel-release` |
+| Fedora | dnf | 同上 |
+
+编译层面也做了适配：老源码（PHP 5.x / MySQL 5.5）在新 gcc（10+，默认 `-fno-common`）下会报重复符号，
+脚本统一加 `-fcommon -Wno-error`，MySQL 另外用 `-std=gnu++98`。
+`ntpdate`、`/etc/sysconfig/iptables-config`、`chkconfig` 这些新系统上已经消失的东西都做了兜底。
+
+> AMH 4.2 本身是 2014 年的东西，PHP 5.3/5.6、MySQL 5.5 都是那个年代的版本。
+> 在最新系统上能编译通过不代表面板功能全部正常，装完建议先跑一遍面板再上生产。
