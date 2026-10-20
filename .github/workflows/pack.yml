@@ -72,9 +72,11 @@ jobs:
           if [ -n "$PREV" ]; then
             echo "变更范围: ${PREV}..HEAD"
             git log --no-merges --pretty=format:'- %s' "${PREV}..HEAD" > /tmp/changes.txt || true
+            [ -s /tmp/changes.txt ] || echo '- 无代码变更（仅重新构建）' > /tmp/changes.txt
+          else
+            git log --no-merges --pretty=format:'- %s' -n 10 > /tmp/changes.txt
           fi
-          [ -s /tmp/changes.txt ] || git log --no-merges --pretty=format:'- %s' -n 10 > /tmp/changes.txt
-          [ -s /tmp/changes.txt ] || echo '- 重新构建，无代码变更' > /tmp/changes.txt
+          [ -s /tmp/changes.txt ] || echo '- 首次构建' > /tmp/changes.txt
 
           CHANGED="${{ steps.plan.outputs.dirs }}"
           if [ -z "$CHANGED" ]; then
