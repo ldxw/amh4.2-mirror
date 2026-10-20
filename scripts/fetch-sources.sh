@@ -1,7 +1,7 @@
 #!/bin/bash
 # 下载 PHP 7.1~8.5 / nginx 1.24~1.28 / MySQL 5.6~8.0 / OpenSSL 1.1.1w 源码到 src/
 set -u
-cd /opt/data/projects/amh4.5 || exit 1
+cd "$(dirname "$0")/.." || exit 1
 mkdir -p src
 
 dl() {   # $1=url  $2=目标文件名
