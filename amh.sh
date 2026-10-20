@@ -219,6 +219,20 @@ function InstallBasePackages()
 	# 现代系统的包名和 2014 年差别很大，这里按发行版分两套
 	if [ "$PKG" == 'apt' ]; then
 		export DEBIAN_FRONTEND=noninteractive;
+
+		# Debian 7/8 的官方源已经下线，自动切到 archive 源（签名早已过期，trusted=yes）
+		case "$OS_ID:$OS_VER" in
+			debian:7*|debian:8*)
+				echo '[Notice] 老版本 Debian，切换 apt 源到 archive.debian.org';
+				cat > /etc/apt/sources.list <<-EOF
+				deb [trusted=yes] http://archive.debian.org/debian ${OS_ID} main contrib non-free
+				deb [trusted=yes] http://archive.debian.org/debian-security ${OS_ID}/updates main contrib non-free
+				EOF
+				echo 'Acquire::Check-Valid-Until "false";' > /etc/apt/apt.conf.d/99archive;
+				echo 'Acquire::AllowInsecureRepositories "true";' >> /etc/apt/apt.conf.d/99archive;
+				;;
+		esac;
+
 		apt-get update;
 
 		PACKAGES="build-essential gcc g++ make cmake autoconf automake libtool patch pkg-config bison re2c flex

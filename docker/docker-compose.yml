@@ -1,8 +1,8 @@
 services:
   amh:
-    # AMH 4.2 是 2014 年的面板，配 Debian 8（jessie）最贴近那个年代
-    # 注意：debian:7 的 bash 在新内核（6.x）上会直接段错误退出，别用
-    image: ${AMH_IMAGE:-debian:8}
+    # 默认 Debian 12；也可以换成 ubuntu:22.04 等现代系统
+    # （debian:7 的 bash 在新内核上会段错误，别用）
+    image: ${AMH_IMAGE:-debian:12}
     container_name: ${AMH_NAME:-amh-test}
     hostname: amh
     privileged: true
