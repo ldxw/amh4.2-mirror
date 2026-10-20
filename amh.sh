@@ -693,17 +693,20 @@ function ChoosePackage()
 	echo '================================================================';
 	echo ' [Packages] 选择要安装的包';
 
-	TAGS=('');
+	TAGS=();
 
-	# 拉 release 列表（GitHub API，按发布时间倒序）
-	listing=`wget -qO- --timeout=10 --tries=1 "https://api.github.com/repos/${PACKAGE_REPO}/releases?per_page=30" 2>/dev/null \
+	# 拉 release 列表；只取时间标签（YYYYMMDD-HHMM），新的在前
+	listing=`wget -qO- --timeout=10 --tries=1 "https://api.github.com/repos/${PACKAGE_REPO}/releases?per_page=50" 2>/dev/null \
 		| grep -o '"tag_name": *"[^"]*"' | cut -d'"' -f4`;
 	if [ -z "$listing" ]; then
-		listing=`curl -s --max-time 10 "https://api.github.com/repos/${PACKAGE_REPO}/releases?per_page=30" 2>/dev/null \
+		listing=`curl -s --max-time 10 "https://api.github.com/repos/${PACKAGE_REPO}/releases?per_page=50" 2>/dev/null \
 			| grep -o '"tag_name": *"[^"]*"' | cut -d'"' -f4`;
 	fi;
 
-	for one in $listing; do
+	dated=`echo "$listing" | grep -E '^[0-9]{8}-[0-9]{4}$' | sort -r`;
+	[ -z "$dated" ] && dated=`echo "$listing" | sed '/^$/d'`;
+
+	for one in $dated; do
 		TAGS[${#TAGS[@]}]="$one";
 	done;
 
