@@ -61,6 +61,19 @@ if os.path.exists("amh.sh"):
         amh_hash = hashlib.sha256(fh.read()).hexdigest()
 current["__amh.sh__"] = amh_hash
 
+# 打包逻辑（pack.sh / 本脚本）变了，说明产出格式可能变，全部重打
+packer = hashlib.sha256()
+for one in ("pack.sh", "scripts/pack-plan.py"):
+    if os.path.exists(one):
+        with open(one, "rb") as fh:
+            packer.update(fh.read())
+current["__packer__"] = packer.hexdigest()
+
+if manifest.get("__packer__") not in (None, current["__packer__"]):
+    # 第一次运行没有基线，不算变更；有基线且不同则全部重打
+    changed_dirs = [n for n in sorted(current) if not n.startswith("__")]
+    files = ["dist/" + output_name(n) for n in changed_dirs]
+
 amh_changed = manifest.get("__amh.sh__") != amh_hash
 if amh_changed:
     files.append("amh.sh")
