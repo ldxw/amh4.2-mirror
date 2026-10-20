@@ -1,18 +1,20 @@
-# amh4.2-mirror
+# amh4.5-mirror
 
-AMH 4.2 面板的离线安装包镜像。所有文件都挂在 [Releases](../../releases) 里，可直接用直链下载。
+AMH 4.2 / 4.5 面板的离线安装包镜像。所有文件都挂在 [Releases](../../releases) 里，可直接用直链下载。
 
 ## 直链
 
+每次构建是一个时间标签（如 `20261020-0744`），标签下是完整的一套包。
+
 ```
-https://github.com/ldxw/amh4.2-mirror/releases/download/v1/<文件名>
+https://github.com/ldxw/amh4.5-mirror/releases/download/<标签>/<文件名>
 ```
 
 例如：
 
 ```sh
-curl -LO https://github.com/ldxw/amh4.2-mirror/releases/download/v1/amh.sh
-curl -LO https://github.com/ldxw/amh4.2-mirror/releases/download/v1/amh-4.5.tar.gz
+curl -LO https://github.com/ldxw/amh4.5-mirror/releases/download/<标签>/amh.sh
+curl -LO https://github.com/ldxw/amh4.5-mirror/releases/download/<标签>/amh-4.5.tar.gz
 ```
 
 ## 文件清单
@@ -86,19 +88,19 @@ sha256sum -c SHA256SUMS
 
 ```
  [Packages] 选择要安装的包
-   1) latest               (最新构建，回车默认)
-   2) v1                   (历史构建)
-   3) 20261020-0744        (历史构建)
- 请选择要安装的包 [1-3, 回车=1]:
+   1) 20261020-0744        (最新构建，回车默认)
+   2) 20261020-0742        (历史构建)
+ 请选择要安装的包 [1-2, 回车=1]:
 ```
 
-- **直接回车** = `latest`
+- **直接回车** = 列表第一个（最新构建）
 - 输入编号 = 用那个标签下的包
-- 非交互执行（管道/自动化）自动用 `latest`
+- 非交互执行（管道/自动化）自动用最新构建
 - 想跳过选择：`AMH_PACKAGE=20261020-0744 bash amh.sh`
+- 也可以直接输入标签名（不是编号时按标签处理）
 
 选完后下载地址变成
-`https://github.com/ldxw/amh4.2-mirror/releases/download/<标签>/`。
+`https://github.com/ldxw/amh4.5-mirror/releases/download/<标签>/`。
 
 ## 自动打包（GitHub Actions）
 
