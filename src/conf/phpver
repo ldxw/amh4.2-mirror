@@ -6,60 +6,41 @@ echo ' [LNMP/Nginx] Amysql Host - AMH 4.2 ';
 echo ' http://Amysql.com';
 echo '';
 
+# 面板基础版本 5.3 用 /usr/local/php，其它版本用 /usr/local/php<版本号>
+PHPVersions='5.3 5.4 5.5 5.6 7.0 7.1 7.2 7.3 7.4 8.0 8.1 8.2 8.3 8.4 8.5';
+
 function PHPVersionManagement()
 {
 	if [ "$*" != '' ]; then
 		selected=$1;
 		domain=$2;
 	else
-		echo "[AMH] PHP Version Management please select: (1~5)"
-		select selected in  '5.3' '5.4' '5.5' '5.6' '7.0' 'exit'; do break; done;
+		echo "[AMH] PHP 版本管理，请选择: (1~15)"
+		select selected in $PHPVersions 'exit'; do break; done;
 	fi;
 
 	[ "$selected" == 'exit' ] && exit;
+	[ "$selected" == '' ] && { PHPVersionManagement; return; };
 
-	[ "$domain" == '' ] && read -p "[Notice] Please input domain:" domain
-	[ "$domain" == '' ] && echo '[error] empty domain' && exit 1;
+	[ "$domain" == '' ] && read -p "[Notice] 请输入域名:" domain
+	[ "$domain" == '' ] && echo '[error] 域名不能为空' && exit 1;
 
-	echo "[Notice] $domain PHP Version will change to ${selected}...";
-
+	# 5.3 是面板基础版本，目录不带版本号
 	if [ "$selected" == '5.3' ]; then
-		[ ! -f "/root/amh/sitesconf/"${domain}".conf" ] && touch "/root/amh/sitesconf/"${domain}".conf";
-		sed -i '0,/phpver/{/^phpver.*/d}' "/root/amh/sitesconf/"${domain}".conf";
-		echo 'phpver=5.3' > "/root/amh/sitesconf/"${domain}".conf";
-		echo "[OK] "${domain}" PHP Version changed to PHP 5.3 /root/amh/sitesconf/"${domain}".conf";
-		/root/amh/php restart;
-	elif [ "$selected" == '5.4' ]; then
-		[ ! -d /usr/local/php5.4 ] && echo '[error] PHP5.4 Not Installed' && exit 1;
-		[ ! -f "/root/amh/sitesconf/"${domain}".conf" ] && touch "/root/amh/sitesconf/"${domain}".conf";
-		sed -i '0,/phpver/{/^phpver.*/d}' "/root/amh/sitesconf/"${domain}".conf";
-		echo 'phpver=5.4' > "/root/amh/sitesconf/"${domain}".conf";
-		echo "[OK] "${domain}" PHP Version changed to PHP 5.4 /root/amh/sitesconf/"${domain}".conf";
-		/root/amh/php restart;
-	elif [ "$selected" == '5.5' ]; then
-		[ ! -d /usr/local/php5.5 ] && echo '[error] PHP5.5 Not Installed' && exit 1;
-		[ ! -f "/root/amh/sitesconf/"${domain}".conf" ] && touch "/root/amh/sitesconf/"${domain}".conf";
-		sed -i '0,/phpver/{/^phpver.*/d}' "/root/amh/sitesconf/"${domain}".conf";
-		echo 'phpver=5.5' > "/root/amh/sitesconf/"${domain}".conf";
-		echo "[OK] "${domain}" PHP Version changed to PHP 5.5 /root/amh/sitesconf/"${domain}".conf";
-		/root/amh/php restart;
-	elif [ "$selected" == '5.6' ]; then
-		[ ! -d /usr/local/php5.6 ] && echo '[error] PHP5.6 Not Installed' && exit 1;
-		[ ! -f "/root/amh/sitesconf/"${domain}".conf" ] && touch "/root/amh/sitesconf/"${domain}".conf";
-		sed -i '0,/phpver/{/^phpver.*/d}' "/root/amh/sitesconf/"${domain}".conf";
-		echo 'phpver=5.6' > "/root/amh/sitesconf/"${domain}".conf";
-		echo "[OK] "${domain}" PHP Version changed to PHP 5.6 /root/amh/sitesconf/"${domain}".conf";
-		/root/amh/php restart;
-	elif [ "$selected" == '7.0' ]; then
-		[ ! -d /usr/local/php7.0 ] && echo '[error] PHP7.0 Not Installed' && exit 1;
-		[ ! -f "/root/amh/sitesconf/"${domain}".conf" ] && touch "/root/amh/sitesconf/"${domain}".conf";
-		sed -i '0,/phpver/{/^phpver.*/d}' "/root/amh/sitesconf/"${domain}".conf";
-		echo 'phpver=7.0' > "/root/amh/sitesconf/"${domain}".conf";
-		echo "[OK] "${domain}" PHP Version changed to PHP 7.0 /root/amh/sitesconf/"${domain}".conf";
-		/root/amh/php restart;
+		phpdir='/usr/local/php';
 	else
-		PHPVersionManagement;
-		return;
+		phpdir="/usr/local/php${selected}";
 	fi;
+
+	[ ! -d "$phpdir" ] && echo "[error] PHP ${selected} 未安装" && exit 1;
+
+	echo "[Notice] ${domain} 的 PHP 版本将切换到 ${selected} ...";
+
+	[ ! -f "/root/amh/sitesconf/${domain}.conf" ] && touch "/root/amh/sitesconf/${domain}.conf";
+	sed -i '/^phpver.*/d' "/root/amh/sitesconf/${domain}.conf";
+	echo "phpver=${selected}" >> "/root/amh/sitesconf/${domain}.conf";
+
+	echo "[OK] ${domain} 已切换为 PHP ${selected}（/root/amh/sitesconf/${domain}.conf）";
+	/root/amh/php restart;
 }
 PHPVersionManagement $*;

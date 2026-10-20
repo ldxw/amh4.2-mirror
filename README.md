@@ -102,6 +102,33 @@ sha256sum -c SHA256SUMS
 选完后下载地址变成
 `https://github.com/ldxw/amh4.5-mirror/releases/download/<标签>/`。
 
+## 软件版本选择
+
+确认安装后依次选择 PHP / Nginx / MySQL 版本，全部中文提示：
+
+| 项目 | 可选版本 | 默认 |
+|---|---|---|
+| PHP | 5.3（基础，始终安装）+ 5.4 / 5.5 / 5.6 / 7.0 / 7.1 / 7.2 / 7.3 / 7.4 / 8.0 / 8.1 / 8.2 / 8.3 / 8.4 / 8.5 | 只装 5.3 |
+| Nginx | 1.28.3 / 1.26.3 / 1.24.0 / 1.9.6（原版） | 1.28.3 |
+| MySQL | 5.5.34 / 5.6.51 / 5.7.44 / 8.0.43 | 5.5.34 |
+
+PHP 可以多选，输入编号（`8 12`）或直接写版本号（`7.4 8.3`）都行，逗号也能当分隔符。
+
+非交互（管道 / 自动化）用环境变量指定：
+
+```bash
+AMH_PHP="7.4 8.3" AMH_NGINX=1.26 AMH_MYSQL=5.7 bash amh.sh
+```
+
+安装目录统一为 `/usr/local/php`（5.3）和 `/usr/local/php<版本>`（其它），
+站点切换版本用 `amh php` 或 `phpver`。
+
+> MySQL 没有 5.8 这个版本，5.7 之后直接是 8.0，所以选项里是 8.0。
+> 5.7/8.0 用 `mysqld --initialize-insecure` 初始化、`ALTER USER` 设密码；
+> 8.0 强制 `mysql_native_password`，否则面板的 PHP 5.3 连不上。
+> PHP ≤ 8.0 与 nginx 1.24+ 需要 OpenSSL 1.1.1，脚本会单独编译一份到
+> `/usr/local/openssl-1.1.1w`，不动系统自带的。
+
 ## 自动打包（GitHub Actions）
 
 推到 `main` 后自动跑 `.github/workflows/pack.yml`：

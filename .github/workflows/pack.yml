@@ -18,6 +18,9 @@ jobs:
           fetch-depth: 0
           fetch-tags: true
 
+      - name: 补齐超大源码包
+        run: bash scripts/fetch-sources.sh large
+
       - name: 取上一个构建作为底包
         id: prev
         env:

@@ -35,8 +35,26 @@ Php54Version='php-5.4.44';
 Php55Version='php-5.5.28';
 Php56Version='php-5.6.12';
 Php70Version='php-7.0.0';
+Php71Version='php-7.1.33';
+Php72Version='php-7.2.34';
+Php73Version='php-7.3.33';
+Php74Version='php-7.4.33';
+Php80Version='php-8.0.30';
+Php81Version='php-8.1.34';
+Php82Version='php-8.2.34';
+Php83Version='php-8.3.35';
+Php84Version='php-8.4.26';
+Php85Version='php-8.5.11';
 NginxVersion='nginx-1.9.6';
+Nginx124Version='nginx-1.24.0';
+Nginx126Version='nginx-1.26.3';
+Nginx128Version='nginx-1.28.3';
 OpenSSLVersion='openssl-1.0.2d';
+OpenSSL111Version='openssl-1.1.1w';
+
+# 可选的额外 PHP 版本（5.3 是面板基础版本，始终安装）
+PhpAllVersions='5.4 5.5 5.6 7.0 7.1 7.2 7.3 7.4 8.0 8.1 8.2 8.3 8.4 8.5';
+PHPSelected='';
 NginxCachePurgeVersion='ngx_cache_purge-2.3';
 PureFTPdVersion='pure-ftpd-1.0.36';
 PACKAGE_REPO='ldxw/amh4.5-mirror';
@@ -118,29 +136,90 @@ function CheckSystem()
 
 function ConfirmInstall()
 {
-	echo "[Notice] Confirm Install/Uninstall AMH? please select: (1~3)"
-	select selected in 'Install AMH 4.2' 'Uninstall AMH 4.2' 'Exit'; do break; done;
-	[ "$selected" == 'Exit' ] && echo 'Exit Install.' && exit;
-		
-	if [ "$selected" == 'Install AMH 4.2' ]; then
+	echo '';
+	echo '[提示] 请选择操作: (1~3)';
+	select selected in '安装 AMH 4.2' '卸载 AMH 4.2' '退出'; do break; done;
+
+	[ "$selected" == '退出' ] && echo '已退出。' && exit;
+
+	if [ "$selected" == '安装 AMH 4.2' ]; then
 		InstallModel='1';
-	elif [ "$selected" == 'Uninstall AMH 4.2' ]; then
+	elif [ "$selected" == '卸载 AMH 4.2' ]; then
 		Uninstall;
+		return;
 	else
 		ConfirmInstall;
 		return;
 	fi;
 
-	echo "[OK] You Selected: ${selected}";
-	
-	read -p '[Notice] Do you want PHP5.4? : (y/n)' confirm54;
-	[ "$confirm54" == 'y' ] && echo '[OK] php5.4 will be installed';
-	read -p '[Notice] Do you want PHP5.5? : (y/n)' confirm55;
-	[ "$confirm55" == 'y' ] && echo '[OK] php5.5 will be installed';
-	read -p '[Notice] Do you want PHP5.6? : (y/n)' confirm56;
-	[ "$confirm56" == 'y' ] && echo '[OK] php5.6 will be installed';	
-	read -p '[Notice] Do you want PHP7.0? : (y/n)' confirm70;
-	[ "$confirm70" == 'y' ] && echo '[OK] php7.0 will be installed';	
+	echo "[OK] 已选择: ${selected}";
+
+	# ---------------- PHP 额外版本（多选）
+	echo '';
+	echo '[提示] 选择要额外安装的 PHP 版本（可多选）';
+	i=0;
+	for one in $PhpAllVersions; do
+		i=$((i+1));
+		printf '  %2d) PHP %s\n' "$i" "$one";
+	done;
+	echo '      （面板基础版本 PHP 5.3 始终安装）';
+	if [ -t 0 ]; then
+		read -p ' 输入编号，空格分隔（回车 = 只装 PHP 5.3）: ' php_picks;
+	else
+		php_picks="$AMH_PHP";
+	fi;
+
+	PHPSelected='';
+	for pick in $php_picks; do
+		# 支持写编号（8）或直接写版本号（7.4），逗号也当分隔符
+		pick=`echo "$pick" | tr ',' ' '`;
+		for item in $pick; do
+			if echo "$item" | grep -qE '^[0-9]+$'; then
+				idx=0;
+				for one in $PhpAllVersions; do
+					idx=$((idx+1));
+					if [ "$idx" == "$item" ]; then
+						PHPSelected="$PHPSelected $one";
+					fi;
+				done;
+			elif echo " $PhpAllVersions " | grep -q " $item "; then
+				PHPSelected="$PHPSelected $item";
+			fi;
+		done;
+	done;
+	[ -n "$PHPSelected" ] && echo "[OK] 额外安装: PHP${PHPSelected}" || echo '[OK] 不额外安装其它 PHP 版本';
+
+	# ---------------- Nginx 版本（单选）
+	echo '';
+	echo '[提示] 选择 Nginx 版本（回车默认 1.28 最新）';
+	if [ -t 0 ]; then
+		select nginx_sel in '1.28（最新）' '1.26' '1.24' '1.9.6（原版）'; do break; done;
+	else
+		nginx_sel="${AMH_NGINX:-1.28（最新）}";
+	fi;
+	case "$nginx_sel" in
+		1.24*) NginxVersion="$Nginx124Version" ;;
+		1.26*) NginxVersion="$Nginx126Version" ;;
+		1.9.6*) NginxVersion='nginx-1.9.6' ;;
+		*) NginxVersion="$Nginx128Version" ;;
+	esac;
+	echo "[OK] Nginx: ${NginxVersion}";
+
+	# ---------------- MySQL 版本（单选）
+	echo '';
+	echo '[提示] 选择 MySQL 版本（回车默认 5.5 原版，兼容性最好）';
+	if [ -t 0 ]; then
+		select mysql_sel in '5.5（原版）' '5.6' '5.7' '8.0'; do break; done;
+	else
+		mysql_sel="${AMH_MYSQL:-5.5（原版）}";
+	fi;
+	case "$mysql_sel" in
+		5.6*) MysqlVersion='mysql-5.6.51' ;;
+		5.7*) MysqlVersion='mysql-5.7.44' ;;
+		8.0*) MysqlVersion='mysql-8.0.43' ;;
+		*) MysqlVersion='mysql-5.5.34' ;;
+	esac;
+	echo "[OK] MySQL: ${MysqlVersion}";
 }
 
   function GetServerIP()
@@ -295,7 +374,8 @@ function InstallBasePackages()
 			wget curl unzip tar bzip2 xz-utils cron logrotate net-tools expect ftp ca-certificates
 			libncurses-dev libxml2-dev libssl-dev libcurl4-openssl-dev libpng-dev libjpeg-dev libfreetype-dev
 			libzip-dev libpcre3-dev zlib1g-dev libbz2-dev libaio-dev libreadline-dev libsqlite3-dev
-			gettext libcap-dev libevent-dev libsasl2-dev";
+			gettext libcap-dev libevent-dev libsasl2-dev
+			libonig-dev libwebp-dev libsodium-dev libgmp-dev libxslt1-dev libnuma-dev";
 
 		for one in $PACKAGES; do
 			if dpkg -s "$one" >/dev/null 2>&1; then
@@ -315,7 +395,8 @@ function InstallBasePackages()
 			wget curl unzip tar bzip2 xz cronie logrotate net-tools expect ftp ca-certificates
 			ncurses-devel libxml2-devel openssl-devel libcurl-devel libpng-devel libjpeg-turbo-devel
 			freetype-devel libzip-devel pcre-devel zlib-devel bzip2-devel libaio-devel readline-devel
-			sqlite-devel gettext libcap-devel libevent-devel cyrus-sasl-devel";
+			sqlite-devel gettext libcap-devel libevent-devel cyrus-sasl-devel
+			oniguruma-devel libwebp-devel libsodium-devel gmp-devel libxslt-devel numactl-devel";
 
 		for one in $PACKAGES; do
 			if rpm -q "$one" >/dev/null 2>&1; then
@@ -326,6 +407,32 @@ function InstallBasePackages()
 		done;
 	fi;
 }
+
+function PhpPkgName()
+{
+	case "$1" in
+		5.4) echo "$Php54Version" ;;
+		5.5) echo "$Php55Version" ;;
+		5.6) echo "$Php56Version" ;;
+		7.0) echo "$Php70Version" ;;
+		7.1) echo "$Php71Version" ;;
+		7.2) echo "$Php72Version" ;;
+		7.3) echo "$Php73Version" ;;
+		7.4) echo "$Php74Version" ;;
+		8.0) echo "$Php80Version" ;;
+		8.1) echo "$Php81Version" ;;
+		8.2) echo "$Php82Version" ;;
+		8.3) echo "$Php83Version" ;;
+		8.4) echo "$Php84Version" ;;
+		8.5) echo "$Php85Version" ;;
+	esac;
+}
+
+function PhpVerNum()
+{
+	echo "$1" | sed 's/^php-//';
+}
+
 
 function Downloadfile()
 {
@@ -454,62 +561,205 @@ function InstallOpenSSL()
 	echo "[OK] ${OpenSSLVersion} tar completed.";
 }
 
+function InstallOpenSSL111()
+{
+	# PHP <= 8.0 和 nginx 1.24+ 都需要 1.1.1 以上的 OpenSSL，单独编一份不去动系统的
+	if [ -d /usr/local/$OpenSSL111Version ]; then
+		echo "[OK] ${OpenSSL111Version} 已存在。";
+		return;
+	fi;
+
+	echo "[${OpenSSL111Version} Installing] ************************************************** >>";
+	Downloadfile "${OpenSSL111Version}.tar.gz" "$DOWNLOAD_BASE_URL/${OpenSSL111Version}.tar.gz";
+	# 源码解到临时目录，装到 /usr/local（解压和安装同一目录会 cp 到自己而失败）
+	rm -rf $AMHDir/packages/untar/$OpenSSL111Version;
+	tar -zxf $AMHDir/packages/$OpenSSL111Version.tar.gz -C $AMHDir/packages/untar;
+
+	cd $AMHDir/packages/untar/$OpenSSL111Version;
+	./config --prefix=/usr/local/$OpenSSL111Version --openssldir=/usr/local/$OpenSSL111Version/ssl shared zlib || {
+		echo '[Error] OpenSSL 1.1.1 configure 失败。';
+		return 1;
+	};
+	make -j ${Cpunum:-1} && make install_sw;
+
+	# 运行时找得到 libssl.so.1.1（PHP / nginx 都动态链它）
+	echo "/usr/local/$OpenSSL111Version/lib" > /etc/ld.so.conf.d/openssl111.conf;
+	ldconfig;
+
+	echo "[OK] ${OpenSSL111Version} install completed.";
+}
+
+
+function WriteMysqlCnf()
+{
+	# $1 = 版本短号：5.5 / 5.6 / 5.7 / 8.0
+	case "$1" in
+		5.5|5.6)
+			cp $AMHDir/conf/my.cnf /etc/my.cnf;
+			;;
+		*)
+			cat > /etc/my.cnf <<EOF
+[client]
+port = 3306
+socket = /tmp/mysql.sock
+
+[mysqld]
+datadir=/home/mysqldata
+max_connections = 1024
+thread_cache_size = 10
+default-storage-engine = InnoDB
+port = 3306
+socket = /tmp/mysql.sock
+skip-external-locking
+key_buffer_size = 16M
+max_allowed_packet = 16M
+table_open_cache = 256
+sort_buffer_size = 512K
+net_buffer_length = 8K
+read_buffer_size = 256K
+read_rnd_buffer_size = 512K
+myisam_sort_buffer_size = 8M
+server-id = 1
+log-bin = mysql-bin
+binlog_format = mixed
+character-set-server = utf8mb4
+collation-server = utf8mb4_general_ci
+
+[mysqldump]
+quick
+
+[mysql]
+no-auto-rehash
+
+[myisamchk]
+key_buffer_size = 20M
+sort_buffer_size = 20M
+read_buffer = 2M
+write_buffer = 2M
+EOF
+			# 8.0 默认 caching_sha2_password，面板的 PHP 5.3 连不上
+			if [ "$1" == '8.0' ]; then
+				echo 'default_authentication_plugin = mysql_native_password' >> /etc/my.cnf;
+			fi;
+			;;
+	esac;
+}
 
 function InstallMysql()
 {
 	# [dir] /usr/local/mysql/
+	local vshort=`echo $MysqlVersion | sed 's/^mysql-//' | cut -d. -f1,2`;
+	local jlevel=$Cpunum;
+	# 1G 内存机器并行 make 会 OOM
+	[ "${RamTotal:-0}" -lt 1500 ] && jlevel=1;
+
 	echo "[${MysqlVersion} Installing] ************************************************** >>";
 	Downloadfile "${MysqlVersion}.tar.gz" "$DOWNLOAD_BASE_URL/${MysqlVersion}.tar.gz";
 	rm -rf $AMHDir/packages/untar/$MysqlVersion;
 	echo "tar -zxf ${MysqlVersion}.tar.gz ing...";
 	tar -zxf $AMHDir/packages/$MysqlVersion.tar.gz -C $AMHDir/packages/untar;
 
-	if [ ! -f /usr/local/mysql/bin/mysql ]; then
+	if [ -f /usr/local/mysql/bin/mysql ]; then
+		echo '[OK] MySQL 已安装。';
+		return;
+	fi;
+
+	groupadd mysql 2>/dev/null || true;
+	useradd -s /sbin/nologin -g mysql mysql 2>/dev/null || true;
+
+	BOOST_OPT='';
+	case "$vshort" in
+		5.7|8.0)
+			mkdir -p $AMHDir/packages/boost;
+			BOOST_OPT="-DDOWNLOAD_BOOST=1 -DWITH_BOOST=$AMHDir/packages/boost";
+			;;
+	esac;
+
+	CXX_STD='-std=gnu++98';
+	case "$vshort" in
+		5.7) CXX_STD='-std=gnu++11' ;;
+		8.0) CXX_STD='-std=gnu++14' ;;
+	esac;
+
+	CHARSET='utf8'; COLLATE='utf8_general_ci';
+	case "$vshort" in
+		5.7|8.0) CHARSET='utf8mb4'; COLLATE='utf8mb4_general_ci' ;;
+	esac;
+
+	echo "[Notice] cmake 配置（${vshort}）...";
+	# MySQL 8.0 拒绝在源码目录里构建，必须单独建一个构建目录
+	if [ "$vshort" == '8.0' ]; then
+		MYSQL_SRC=$AMHDir/packages/untar/$MysqlVersion;
+		MYSQL_BUILD=$AMHDir/packages/untar/${MysqlVersion}-build;
+		rm -rf $MYSQL_BUILD;
+		mkdir -p $MYSQL_BUILD;
+		cd $MYSQL_BUILD;
+	else
+		MYSQL_SRC='';
 		cd $AMHDir/packages/untar/$MysqlVersion;
-		groupadd mysql;
-		useradd -s /sbin/nologin -g mysql mysql;
-		cmake -DCMAKE_INSTALL_PREFIX=/usr/local/mysql  -DDEFAULT_CHARSET=utf8 -DDEFAULT_COLLATION=utf8_general_ci -DWITH_EXTRA_CHARSETS=complex -DWITH_READLINE=1 -DENABLED_LOCAL_INFILE=1 \
-			-DCMAKE_C_FLAGS="$CFLAGS" -DCMAKE_CXX_FLAGS="$CXXFLAGS -std=gnu++98";
-		#http://forge.mysql.com/wiki/Autotools_to_CMake_Transition_Guide
-		make -j $Cpunum;
-		make install;
-		chmod +w /usr/local/mysql;
-		chown -R mysql:mysql /usr/local/mysql;
-		mkdir -p /home/mysqldata;
-		chown -R mysql:mysql /home/mysqldata;
+	fi;
 
-		rm -f /etc/mysql/my.cnf /usr/local/mysql/etc/my.cnf;
-		cp $AMHDir/conf/my.cnf /etc/my.cnf;
-		cp $AMHDir/conf/mysql /root/amh/mysql;
-		chmod +x /root/amh/mysql;
-		/usr/local/mysql/scripts/mysql_install_db --user=mysql --defaults-file=/etc/my.cnf --basedir=/usr/local/mysql --datadir=/home/mysqldata;
-		
+	cmake $MYSQL_SRC -DCMAKE_INSTALL_PREFIX=/usr/local/mysql -DDEFAULT_CHARSET=$CHARSET -DDEFAULT_COLLATION=$COLLATE \
+		-DWITH_EXTRA_CHARSETS=complex -DWITH_READLINE=1 -DENABLED_LOCAL_INFILE=1 -DWITH_INNODB_MEMCACHED=OFF \
+		-DWITH_UNIT_TESTS=OFF -DWITH_DEBUG=OFF -DWITH_EMBEDDED_SERVER=OFF -DWITH_GROUP_REPLICATION=OFF $BOOST_OPT \
+		-DCMAKE_C_FLAGS="$CFLAGS" -DCMAKE_CXX_FLAGS="$CXXFLAGS $CXX_STD" || {
+			echo '[Error] MySQL cmake 配置失败。';
+			return 1;
+		};
 
-# EOF **********************************
+	make -j $jlevel || {
+		echo '[Error] MySQL 编译失败。';
+		return 1;
+	};
+	make install;
+
+	chmod +w /usr/local/mysql;
+	chown -R mysql:mysql /usr/local/mysql;
+	mkdir -p /home/mysqldata;
+	chown -R mysql:mysql /home/mysqldata;
+
+	rm -f /etc/mysql/my.cnf /usr/local/mysql/etc/my.cnf;
+	WriteMysqlCnf "$vshort";
+	cp $AMHDir/conf/mysql /root/amh/mysql;
+	chmod +x /root/amh/mysql;
+
+	echo '[Notice] 初始化数据目录 ...';
+	case "$vshort" in
+		5.5|5.6)
+			/usr/local/mysql/scripts/mysql_install_db --user=mysql --defaults-file=/etc/my.cnf --basedir=/usr/local/mysql --datadir=/home/mysqldata;
+			;;
+		*)
+			/usr/local/mysql/bin/mysqld --initialize-insecure --user=mysql --basedir=/usr/local/mysql --datadir=/home/mysqldata 2>&1 | tail -3;
+			;;
+	esac;
+
 cat > /etc/ld.so.conf.d/mysql.conf<<EOF
 /usr/local/mysql/lib/mysql
 /usr/local/lib
 EOF
-# **************************************
 
-		ldconfig;
-		if [ "$SysBit" == '64' ] ; then
-			ln -s /usr/local/mysql/lib/mysql /usr/lib64/mysql;
-		else
-			ln -s /usr/local/mysql/lib/mysql /usr/lib/mysql;
-		fi;
-		chmod 775 /usr/local/mysql/support-files/mysql.server;
-		/usr/local/mysql/support-files/mysql.server start;
-		ln -s /usr/local/mysql/bin/mysql /usr/bin/mysql;
-		ln -s /usr/local/mysql/bin/mysqladmin /usr/bin/mysqladmin;
-		ln -s /usr/local/mysql/bin/mysqldump /usr/bin/mysqldump;
-		ln -s /usr/local/mysql/bin/myisamchk /usr/bin/myisamchk;
-		ln -s /usr/local/mysql/bin/mysqld_safe /usr/bin/mysqld_safe;
+	ldconfig;
+	if [ "$SysBit" == '64' ] ; then
+		ln -sf /usr/local/mysql/lib/mysql /usr/lib64/mysql;
+	else
+		ln -sf /usr/local/mysql/lib/mysql /usr/lib/mysql;
+	fi;
 
-		/usr/local/mysql/bin/mysqladmin password $MysqlPass;
-		rm -rf /usr/local/mysql/data/test;
+	chmod 775 /usr/local/mysql/support-files/mysql.server;
+	/usr/local/mysql/support-files/mysql.server start;
 
-# EOF **********************************
+	ln -sf /usr/local/mysql/bin/mysql /usr/bin/mysql;
+	ln -sf /usr/local/mysql/bin/mysqladmin /usr/bin/mysqladmin;
+	ln -sf /usr/local/mysql/bin/mysqldump /usr/bin/mysqldump;
+	ln -sf /usr/local/mysql/bin/myisamchk /usr/bin/myisamchk;
+	ln -sf /usr/local/mysql/bin/mysqld_safe /usr/bin/mysqld_safe;
+
+	# 设置 root 密码（5.7/8.0 是 initialize-insecure，root 初始无密码）
+	/usr/local/mysql/bin/mysqladmin -u root password "$MysqlPass";
+
+	echo '[Notice] 清理多余账号 ...';
+	case "$vshort" in
+		5.5|5.6)
 mysql -hlocalhost -uroot -p$MysqlPass <<EOF
 USE mysql;
 DELETE FROM user WHERE User!='root' OR (User = 'root' AND Host != 'localhost');
@@ -517,12 +767,18 @@ UPDATE user set password=password('$MysqlPass') WHERE User='root';
 DROP USER ''@'%';
 FLUSH PRIVILEGES;
 EOF
-# **************************************
-		echo "[OK] ${MysqlVersion} install completed.";
-	else
-		echo '[OK] MySQL is installed.';
-	fi;
+			;;
+		*)
+mysql -hlocalhost -uroot -p$MysqlPass <<EOF
+ALTER USER 'root'@'localhost' IDENTIFIED WITH mysql_native_password BY '$MysqlPass';
+DROP USER IF EXISTS ''@'localhost';
+DROP USER IF EXISTS ''@'%';
+FLUSH PRIVILEGES;
+EOF
+			;;
+	esac;
 
+	echo "[OK] ${MysqlVersion} install completed.";
 }
 
 function InstallPhp()
@@ -536,10 +792,11 @@ function InstallPhp()
 
 	if [ ! -d /usr/local/php ]; then
 		cd $AMHDir/packages/untar/$PhpVersion;
+		export PKG_CONFIG_PATH="/usr/local/$OpenSSL111Version/lib/pkgconfig:${PKG_CONFIG_PATH}";
 		groupadd www;
 		useradd -m -s /sbin/nologin -g www www;
 		if [ "$InstallModel" == '1' ]; then
-			./configure --prefix=/usr/local/php --enable-fpm --with-fpm-user=www --with-fpm-group=www --with-config-file-path=/etc --with-config-file-scan-dir=/etc/php.d --with-openssl --with-zlib  --with-curl --enable-ftp --with-gd --with-jpeg-dir --with-png-dir --with-freetype-dir --enable-gd-native-ttf --enable-mbstring --enable-zip ${ICONV_OPT} --with-mysql=mysqlnd --with-mysqli=mysqlnd --with-pdo-mysql=mysqlnd --without-pear $PHPDisable;
+			./configure --prefix=/usr/local/php --enable-fpm --with-fpm-user=www --with-fpm-group=www --with-config-file-path=/etc --with-config-file-scan-dir=/etc/php.d --with-openssl=/usr/local/$OpenSSL111Version --with-zlib  --with-curl --enable-ftp --with-gd --with-jpeg-dir --with-png-dir --with-freetype-dir --enable-gd-native-ttf --enable-mbstring --enable-zip ${ICONV_OPT} --with-mysql=mysqlnd --with-mysqli=mysqlnd --with-pdo-mysql=mysqlnd --without-pear $PHPDisable;
 		fi;
 		make -j $Cpunum;
 		make install;
@@ -570,110 +827,115 @@ function InstallPhp()
 	fi;
 }
 
-
-function InstallPhp54()
+function PhpConfigureOpts()
 {
-	# [dir] /usr/local/php5.4
-	echo "[${Php54Version} Installing] ************************************************** >>";
-	Downloadfile "${Php54Version}.tar.gz" "$DOWNLOAD_BASE_URL/${Php54Version}.tar.gz";
-	rm -rf $AMHDir/packages/untar/$Php54Version;
-	echo "tar -zxf ${Php54Version}.tar.gz ing...";
-	tar -zxf $AMHDir/packages/$Php54Version.tar.gz -C $AMHDir/packages/untar;
+	# $1 = 版本号 5.4 ... 8.5
+	local ver="$1"
+	local opts='';
 
-	if [ ! -d /usr/local/php5.4 ]; then
-		cd $AMHDir/packages/untar/$Php54Version;
-		if [ "$InstallModel" == '1' ]; then
-			./configure --prefix=/usr/local/php5.4 --enable-fpm --with-fpm-user=www --with-fpm-group=www --with-config-file-path=/usr/local/php5.4/etc --with-config-file-scan-dir=/etc/php.d/5.4 --with-openssl --with-zlib  --with-curl --enable-ftp --with-gd --with-jpeg-dir --with-png-dir --with-freetype-dir --enable-gd-native-ttf --enable-mbstring --enable-zip ${ICONV_OPT} --with-mysql=mysqlnd --with-mysqli=mysqlnd --with-pdo-mysql=mysqlnd --without-pear $PHPDisable;
-		fi;
-		make -j $Cpunum;
-		make install;
-		
-		cp $AMHDir/conf/php54.ini /usr/local/php5.4/etc/php.ini;
-		mkdir -p /etc/php.d/5.4;
+	case "$ver" in
+		5.4|5.5|5.6|7.0|7.1|7.2|7.3)
+			opts="--with-gd --with-jpeg-dir --with-png-dir --with-freetype-dir --enable-gd-native-ttf";
+			;;
+		*)
+			opts="--enable-gd --with-jpeg --with-freetype";
+			;;
+	esac;
 
-		echo "[OK] ${Php54Version} install completed.";
-	else
-		echo '[OK] PHP5.4 is installed.';
-	fi;
+	case "$ver" in
+		5.4|5.5|5.6|7.0|7.1|7.2|7.3)
+			opts="$opts --with-mysql=mysqlnd --enable-zip";
+			;;
+		*)
+			opts="$opts --with-zip";
+			;;
+	esac;
+
+	# PHP 7.4 以下不认识 OpenSSL 3，用单独编的 1.1.1w
+	case "$ver" in
+		5.4|5.5|5.6|7.0|7.1|7.2|7.3|7.4|8.0)
+			opts="$opts --with-openssl=/usr/local/$OpenSSL111Version";
+			;;
+		*)
+			opts="$opts --with-openssl";
+			;;
+	esac;
+
+	case "$ver" in
+		5.5|5.6|7.0|7.1|7.2|7.3|7.4|8.0|8.1|8.2|8.3|8.4|8.5)
+			opts="$opts --enable-opcache";
+			;;
+	esac;
+
+	echo "$opts";
 }
 
-function InstallPhp55()
+function InstallPhpVersion()
 {
-	# [dir] /usr/local/php5.5
-	echo "[${Php55Version} Installing] ************************************************** >>";
-	Downloadfile "${Php55Version}.tar.gz" "$DOWNLOAD_BASE_URL/${Php55Version}.tar.gz";
-	rm -rf $AMHDir/packages/untar/$Php55Version;
-	echo "tar -zxf ${Php55Version}.tar.gz ing...";
-	tar -zxf $AMHDir/packages/$Php55Version.tar.gz -C $AMHDir/packages/untar;
+	# $1 = 版本号；目录 /usr/local/php<版本>
+	local ver="$1"
+	local pkg=`PhpPkgName "$ver"`
+	local prefix="/usr/local/php${ver}"
+	local ini='php70.ini'
 
-	if [ ! -d /usr/local/php5.5 ]; then
-		cd $AMHDir/packages/untar/$Php55Version;
-		if [ "$InstallModel" == '1' ]; then
-			./configure --prefix=/usr/local/php5.5 --enable-fpm --with-fpm-user=www --with-fpm-group=www --with-config-file-path=/usr/local/php5.5/etc --with-config-file-scan-dir=/etc/php.d/5.5 --with-openssl --with-zlib  --with-curl --enable-ftp --with-gd --with-jpeg-dir --with-png-dir --with-freetype-dir --enable-gd-native-ttf --enable-mbstring --enable-zip ${ICONV_OPT} --with-mysql=mysqlnd --with-mysqli=mysqlnd --with-pdo-mysql=mysqlnd --enable-opcache --without-pear $PHPDisable;
-		fi;
-		make -j $Cpunum;
-		make install;
-		
-		cp $AMHDir/conf/php55.ini /usr/local/php5.5/etc/php.ini;
-		mkdir -p /etc/php.d/5.5;
+	case "$ver" in
+		5.4) ini='php54.ini' ;;
+		5.5) ini='php55.ini' ;;
+		5.6) ini='php56.ini' ;;
+		7.0) ini='php70.ini' ;;
+	esac;
 
-		echo "[OK] ${Php55Version} install completed.";
-	else
-		echo '[OK] PHP5.5 is installed.';
+	echo "[${pkg} Installing] ************************************************** >>";
+	Downloadfile "${pkg}.tar.gz" "$DOWNLOAD_BASE_URL/${pkg}.tar.gz";
+	rm -rf $AMHDir/packages/untar/$pkg;
+	echo "tar -zxf ${pkg}.tar.gz ing...";
+	tar -zxf $AMHDir/packages/$pkg.tar.gz -C $AMHDir/packages/untar;
+
+	if [ -d "$prefix" ]; then
+		echo "[OK] PHP ${ver} 已安装。";
+		return;
 	fi;
+
+	cd $AMHDir/packages/untar/$pkg;
+
+	local jlevel=$Cpunum;
+	[ "${RamTotal:-0}" -lt 1500 ] && jlevel=1;
+	[ "$ver" == '8.5' ] && [ "${RamTotal:-0}" -lt 2000 ] && jlevel=1;
+
+	case "$ver" in
+		5.4|5.5|5.6|7.0|7.1|7.2|7.3|7.4|8.0)
+			export PKG_CONFIG_PATH="/usr/local/$OpenSSL111Version/lib/pkgconfig:${PKG_CONFIG_PATH}";
+			;;
+	esac;
+
+	./configure --prefix=$prefix --enable-fpm --with-fpm-user=www --with-fpm-group=www \
+		--with-config-file-path=$prefix/etc --with-config-file-scan-dir=/etc/php.d/$ver \
+		--with-zlib --with-curl --enable-ftp --enable-mbstring \
+		--with-mysqli=mysqlnd --with-pdo-mysql=mysqlnd --without-pear $PHPDisable \
+		`PhpConfigureOpts $ver` || {
+			echo "[Error] PHP ${ver} configure 失败。";
+			return 1;
+		};
+
+	make -j $jlevel || {
+		echo "[Error] PHP ${ver} 编译失败。";
+		return 1;
+	};
+	make install;
+
+	cp $AMHDir/conf/$ini $prefix/etc/php.ini;
+	mkdir -p /etc/php.d/$ver;
+
+	echo "[OK] ${pkg} install completed.";
 }
 
-function InstallPhp56()
+function InstallPhpExtra()
 {
-	# [dir] /usr/local/php5.6
-	echo "[${Php56Version} Installing] ************************************************** >>";
-	Downloadfile "${Php56Version}.tar.gz" "$DOWNLOAD_BASE_URL/${Php56Version}.tar.gz";
-	rm -rf $AMHDir/packages/untar/$Php56Version;
-	echo "tar -zxf ${Php56Version}.tar.gz ing...";
-	tar -zxf $AMHDir/packages/$Php56Version.tar.gz -C $AMHDir/packages/untar;
-
-	if [ ! -d /usr/local/php5.6 ]; then
-		cd $AMHDir/packages/untar/$Php56Version;
-		if [ "$InstallModel" == '1' ]; then
-			./configure --prefix=/usr/local/php5.6 --enable-fpm --with-fpm-user=www --with-fpm-group=www --with-config-file-path=/usr/local/php5.6/etc --with-config-file-scan-dir=/etc/php.d/5.6 --with-openssl --with-zlib  --with-curl --enable-ftp --with-gd --with-jpeg-dir --with-png-dir --with-freetype-dir --enable-gd-native-ttf --enable-mbstring --enable-zip ${ICONV_OPT} --with-mysql=mysqlnd --with-mysqli=mysqlnd --with-pdo-mysql=mysqlnd --enable-opcache --without-pear $PHPDisable;
-		fi;
-		make -j $Cpunum;
-		make install;
-		
-		cp $AMHDir/conf/php56.ini /usr/local/php5.6/etc/php.ini;
-		mkdir -p /etc/php.d/5.6;
-
-		echo "[OK] ${Php56Version} install completed.";
-	else
-		echo '[OK] PHP5.6 is installed.';
-	fi;
+	for one in $PHPSelected; do
+		InstallPhpVersion "$one";
+	done;
 }
 
-function InstallPhp70()
-{
-	# [dir] /usr/local/php7.0
-	echo "[${Php70Version} Installing] ************************************************** >>";
-	Downloadfile "${Php70Version}.tar.gz" "$DOWNLOAD_BASE_URL/${Php70Version}.tar.gz";
-	rm -rf $AMHDir/packages/untar/$Php70Version;
-	echo "tar -zxf ${Php70Version}.tar.gz ing...";
-	tar -zxf $AMHDir/packages/$Php70Version.tar.gz -C $AMHDir/packages/untar;
-
-	if [ ! -d /usr/local/php7.0 ]; then
-		cd $AMHDir/packages/untar/$Php70Version;
-		if [ "$InstallModel" == '1' ]; then
-			./configure --prefix=/usr/local/php7.0 --enable-fpm --with-fpm-user=www --with-fpm-group=www --with-config-file-path=/usr/local/php7.0/etc --with-config-file-scan-dir=/etc/php.d/7.0 --with-openssl --with-zlib  --with-curl --enable-ftp --with-gd --with-jpeg-dir --with-png-dir --with-freetype-dir --enable-gd-native-ttf --enable-mbstring --enable-zip ${ICONV_OPT} --with-mysql=mysqlnd --with-mysqli=mysqlnd --with-pdo-mysql=mysqlnd --enable-opcache --without-pear $PHPDisable;
-		fi;
-		make -j $Cpunum;
-		make install;
-		
-		cp $AMHDir/conf/php70.ini /usr/local/php7.0/etc/php.ini;
-		mkdir -p /etc/php.d/7.0;
-
-		echo "[OK] ${Php70Version} install completed.";
-	else
-		echo '[OK] PHP7.0 is installed.';
-	fi;
-}
 
 function InstallNginx()
 {
@@ -691,20 +953,39 @@ function InstallNginx()
 		cd $AMHDir/packages/untar/$NginxVersion;
 		# glibc 2.28+ 的 struct crypt_data 已经没有 current_salt 字段，删掉这行才编得过
 		sed -i '/cd\.current_salt\[0\] = ~salt\[0\];/d' src/os/unix/ngx_user.c 2>/dev/null || true;
-		./configure --prefix=/usr/local/nginx --user=www --group=www --with-http_ssl_module  --with-http_gzip_static_module --without-mail_pop3_module --without-mail_imap_module --without-mail_smtp_module --without-http_uwsgi_module --without-http_scgi_module --with-ipv6 --with-stream --with-http_v2_module --with-openssl=/usr/local/openssl-1.0.2d --add-module=$AMHDir/packages/untar/$NginxCachePurgeVersion;
-		cd /usr/local/$OpenSSLVersion;
-		./config;
-		cd $AMHDir/packages/untar/$NginxVersion;
+		# 1.9.6 是静态链老 OpenSSL；1.24+ 用系统 OpenSSL（1.1.1/3.x），也没有 --with-ipv6 了
+		NGX_SSL='';
+		NGX_IPV6='';
+		if [ "$NginxVersion" == 'nginx-1.9.6' ]; then
+			NGX_SSL="--with-openssl=/usr/local/$OpenSSLVersion";
+			NGX_IPV6='--with-ipv6';
+		fi;
+
+		NGX_OPTS="--prefix=/usr/local/nginx --user=www --group=www --with-http_ssl_module $NGX_SSL --with-http_gzip_static_module --without-mail_pop3_module --without-mail_imap_module --without-mail_smtp_module --without-http_uwsgi_module --without-http_scgi_module $NGX_IPV6 --with-stream --with-http_v2_module";
+
+		# ngx_cache_purge 2.3 只支持到 nginx 1.11，新版本编不过就自动去掉
+		if ! ./configure $NGX_OPTS --add-module=$AMHDir/packages/untar/$NginxCachePurgeVersion >/tmp/ngx-configure.log 2>&1; then
+			echo '[warn] ngx_cache_purge 和不支持当前 nginx 版本，去掉该模块继续';
+			./configure $NGX_OPTS || {
+				echo '[Error] Nginx configure 失败。';
+				return 1;
+			};
+		fi;
+		if [ "$NginxVersion" == 'nginx-1.9.6' ]; then
+			cd /usr/local/$OpenSSLVersion;
+			./config;
+			cd $AMHDir/packages/untar/$NginxVersion;
+		fi;
 		make -j $Cpunum;
 		make install;
 		
 		mkdir -p /home/proxyroot/proxy_temp_dir;
 		mkdir -p /home/proxyroot/proxy_cache_dir;
 		chown www.www -R  /home/proxyroot/proxy_temp_dir  /home/proxyroot/proxy_cache_dir;
-		chmod -R 644  /home/proxyroot/proxy_temp_dir  /home/proxyroot/proxy_cache_dir;
+		chmod -R 755  /home/proxyroot/proxy_temp_dir  /home/proxyroot/proxy_cache_dir;
 
 		mkdir -p /home/wwwroot/index /home/backup /usr/local/nginx/conf/vhost/  /usr/local/nginx/conf/vhost_stop/  /usr/local/nginx/conf/rewrite/;
-		chown +w /home/wwwroot/index;
+		chmod u+w /home/wwwroot/index;
 		touch /usr/local/nginx/conf/rewrite/amh.conf;
 
 		cp $AMHDir/conf/proxy.conf /usr/local/nginx/conf/proxy.conf;
@@ -842,6 +1123,14 @@ function InstallAMS()
 # Choose Packages ****************************************************************************
 function ChoosePackage()
 {
+	# 测试/内网场景：直接用指定的下载目录，跳过 GitHub
+	if [ -n "$AMH_DOWNLOAD_BASE" ]; then
+		DOWNLOAD_BASE_URL="$AMH_DOWNLOAD_BASE";
+		PACKAGE_TAG="${AMH_PACKAGE:-local}";
+		echo " [Packages] 使用指定下载地址: ${DOWNLOAD_BASE_URL}";
+		return 0;
+	fi;
+
 	echo '';
 	echo '================================================================';
 	echo ' [Packages] 选择要安装的包';
@@ -927,12 +1216,12 @@ InstallBasePackages;
 InstallReady;
 InstallLibiconv;
 InstallMysql;
+InstallOpenSSL111;
 InstallPhp;
-[ "$confirm54" == 'y' ] && InstallPhp54;
-[ "$confirm55" == 'y' ] && InstallPhp55;
-[ "$confirm56" == 'y' ] && InstallPhp56;
-[ "$confirm70" == 'y' ] && InstallPhp70;
-InstallOpenSSL;
+if [ -n "$PHPSelected" ]; then
+	InstallPhpExtra;
+fi;
+[ "$NginxVersion" == 'nginx-1.9.6' ] && InstallOpenSSL;
 InstallNginx;
 InstallPureFTPd;
 InstallAMH;

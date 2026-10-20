@@ -26,6 +26,14 @@ PY
 
 pack_one() {
     name="$1"
+
+    # 直接放在 src/ 下的源码包（体积大的新版本，不展开，原样带过去）
+    if [ -f "src/$name.tar.gz" ]; then
+        echo "  复制 src/$name.tar.gz → dist/$name.tar.gz"
+        cp -f "src/$name.tar.gz" "dist/$name.tar.gz"
+        return
+    fi
+
     [ -d "src/$name" ] || { echo "  跳过（无此目录）: $name"; return; }
 
     case "$name" in
@@ -51,6 +59,12 @@ else
     for d in src/*/; do
         [ -d "$d" ] || continue
         pack_one "$(basename "$d")"
+    done
+    for f in src/*.tar.gz; do
+        [ -f "$f" ] || continue
+        b=$(basename "$f" .tar.gz)
+        [ -d "src/$b" ] && continue
+        pack_one "$b"
     done
 fi
 

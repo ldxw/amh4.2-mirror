@@ -1,2 +1,5 @@
 # 打包产物不进 git（由 CI 生成并挂到 Release）
 dist/
+
+# 超过 GitHub 单文件 100MB，构建时由 scripts/fetch-sources.sh large 现拉
+src/mysql-8.0.43.tar.gz

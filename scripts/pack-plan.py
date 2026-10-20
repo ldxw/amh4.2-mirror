@@ -47,9 +47,20 @@ current, changed_dirs, files = {}, [], []
 
 for name in sorted(os.listdir("src")):
     path = os.path.join("src", name)
-    if not os.path.isdir(path):
+
+    if os.path.isdir(path):
+        h = tree_hash(path)
+    elif name.endswith(".tar.gz") and os.path.isfile(path):
+        # 直接存放的源码包（大版本源码不展开）
+        digest = hashlib.sha256()
+        with open(path, "rb") as fh:
+            for chunk in iter(lambda: fh.read(1 << 20), b""):
+                digest.update(chunk)
+        name = name[:-len(".tar.gz")]
+        h = digest.hexdigest()
+    else:
         continue
-    h = tree_hash(path)
+
     current[name] = h
     if manifest.get(name) != h:
         changed_dirs.append(name)
