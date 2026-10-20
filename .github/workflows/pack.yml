@@ -14,6 +14,9 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          fetch-tags: true
 
       - name: 取上一个构建作为底包
         id: prev
@@ -62,6 +65,41 @@ jobs:
         id: tag
         run: echo "tag=$(TZ=Asia/Shanghai date +%Y%m%d-%H%M)" >> "$GITHUB_OUTPUT"
 
+      - name: 生成发布说明
+        run: |
+          PREV="${{ steps.prev.outputs.tag }}"
+
+          if [ -n "$PREV" ]; then
+            echo "变更范围: ${PREV}..HEAD"
+            git log --no-merges --pretty=format:'- %s' "${PREV}..HEAD" > /tmp/changes.txt || true
+          fi
+          [ -s /tmp/changes.txt ] || git log --no-merges --pretty=format:'- %s' -n 10 > /tmp/changes.txt
+          [ -s /tmp/changes.txt ] || echo '- 重新构建，无代码变更' > /tmp/changes.txt
+
+          CHANGED="${{ steps.plan.outputs.dirs }}"
+          [ -z "$CHANGED" ] && CHANGED='（无，全部沿用上一个构建）'
+
+          {
+            echo "## 本次变更"
+            echo ''
+            cat /tmp/changes.txt
+            echo ''
+            echo "## 包"
+            echo ''
+            echo "- 重新打包：${CHANGED}"
+            echo "- 其余包沿用 ${PREV:-无} 的构建"
+            echo "- 共 $(ls -1 dist | grep -v -E 'manifest.json|SHA256SUMS' | wc -l) 个文件"
+            echo ''
+            echo "## 下载"
+            echo ''
+            echo '```'
+            echo "https://github.com/${GITHUB_REPOSITORY}/releases/download/${{ steps.tag.outputs.tag }}/<文件名>"
+            echo '```'
+            echo ''
+            echo '校验：`sha256sum -c SHA256SUMS`'
+          } > /tmp/notes.md
+          cat /tmp/notes.md
+
       - name: 发布
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -71,9 +109,6 @@ jobs:
           gh release create "$TAG" dist/* manifest.json \
             --repo "$GITHUB_REPOSITORY" \
             --title "AMH 4.5 安装包 $TAG" \
-            --notes "完整的一套安装包（未改动的包沿用上一个构建）。
-
-          直链：https://github.com/${GITHUB_REPOSITORY}/releases/download/$TAG/<文件名>
-          校验：sha256sum -c SHA256SUMS"
+            --notes-file /tmp/notes.md
           echo "---- 上传内容 ----"
           gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json assets --jq '.assets[] | "  \(.name)  \(.size)"'
