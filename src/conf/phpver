@@ -1,0 +1,65 @@
+#!/bin/bash
+PATH=/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin;
+
+echo '=============================================================';
+echo ' [LNMP/Nginx] Amysql Host - AMH 4.2 ';
+echo ' http://Amysql.com';
+echo '';
+
+function PHPVersionManagement()
+{
+	if [ "$*" != '' ]; then
+		selected=$1;
+		domain=$2;
+	else
+		echo "[AMH] PHP Version Management please select: (1~5)"
+		select selected in  '5.3' '5.4' '5.5' '5.6' '7.0' 'exit'; do break; done;
+	fi;
+
+	[ "$selected" == 'exit' ] && exit;
+
+	[ "$domain" == '' ] && read -p "[Notice] Please input domain:" domain
+	[ "$domain" == '' ] && echo '[error] empty domain' && exit 1;
+
+	echo "[Notice] $domain PHP Version will change to ${selected}...";
+
+	if [ "$selected" == '5.3' ]; then
+		[ ! -f "/root/amh/sitesconf/"${domain}".conf" ] && touch "/root/amh/sitesconf/"${domain}".conf";
+		sed -i '0,/phpver/{/^phpver.*/d}' "/root/amh/sitesconf/"${domain}".conf";
+		echo 'phpver=5.3' > "/root/amh/sitesconf/"${domain}".conf";
+		echo "[OK] "${domain}" PHP Version changed to PHP 5.3 /root/amh/sitesconf/"${domain}".conf";
+		/root/amh/php restart;
+	elif [ "$selected" == '5.4' ]; then
+		[ ! -d /usr/local/php5.4 ] && echo '[error] PHP5.4 Not Installed' && exit 1;
+		[ ! -f "/root/amh/sitesconf/"${domain}".conf" ] && touch "/root/amh/sitesconf/"${domain}".conf";
+		sed -i '0,/phpver/{/^phpver.*/d}' "/root/amh/sitesconf/"${domain}".conf";
+		echo 'phpver=5.4' > "/root/amh/sitesconf/"${domain}".conf";
+		echo "[OK] "${domain}" PHP Version changed to PHP 5.4 /root/amh/sitesconf/"${domain}".conf";
+		/root/amh/php restart;
+	elif [ "$selected" == '5.5' ]; then
+		[ ! -d /usr/local/php5.5 ] && echo '[error] PHP5.5 Not Installed' && exit 1;
+		[ ! -f "/root/amh/sitesconf/"${domain}".conf" ] && touch "/root/amh/sitesconf/"${domain}".conf";
+		sed -i '0,/phpver/{/^phpver.*/d}' "/root/amh/sitesconf/"${domain}".conf";
+		echo 'phpver=5.5' > "/root/amh/sitesconf/"${domain}".conf";
+		echo "[OK] "${domain}" PHP Version changed to PHP 5.5 /root/amh/sitesconf/"${domain}".conf";
+		/root/amh/php restart;
+	elif [ "$selected" == '5.6' ]; then
+		[ ! -d /usr/local/php5.6 ] && echo '[error] PHP5.6 Not Installed' && exit 1;
+		[ ! -f "/root/amh/sitesconf/"${domain}".conf" ] && touch "/root/amh/sitesconf/"${domain}".conf";
+		sed -i '0,/phpver/{/^phpver.*/d}' "/root/amh/sitesconf/"${domain}".conf";
+		echo 'phpver=5.6' > "/root/amh/sitesconf/"${domain}".conf";
+		echo "[OK] "${domain}" PHP Version changed to PHP 5.6 /root/amh/sitesconf/"${domain}".conf";
+		/root/amh/php restart;
+	elif [ "$selected" == '7.0' ]; then
+		[ ! -d /usr/local/php7.0 ] && echo '[error] PHP7.0 Not Installed' && exit 1;
+		[ ! -f "/root/amh/sitesconf/"${domain}".conf" ] && touch "/root/amh/sitesconf/"${domain}".conf";
+		sed -i '0,/phpver/{/^phpver.*/d}' "/root/amh/sitesconf/"${domain}".conf";
+		echo 'phpver=7.0' > "/root/amh/sitesconf/"${domain}".conf";
+		echo "[OK] "${domain}" PHP Version changed to PHP 7.0 /root/amh/sitesconf/"${domain}".conf";
+		/root/amh/php restart;
+	else
+		PHPVersionManagement;
+		return;
+	fi;
+}
+PHPVersionManagement $*;

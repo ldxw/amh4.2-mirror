@@ -1,0 +1,61 @@
+name: pack
+
+# 改完 src/ 下的源码推到 main，就自动重新打包并挂到 Release
+on:
+  push:
+    branches: [main]
+    paths:
+      - "src/**"
+      - "pack.sh"
+      - "amh.sh"
+      - ".github/workflows/pack.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  pack:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 打包 src/ 下的全部目录
+        run: |
+          chmod +x pack.sh
+          # pack.sh 会遍历 src/*/，新增目录自动包含
+          ./pack.sh
+
+      - name: 汇总产物
+        id: listing
+        run: |
+          echo "---- dist ----"
+          ls -lh dist
+          count=$(ls -1 dist | grep -v SHA256SUMS | wc -l)
+          echo "count=$count" >> "$GITHUB_OUTPUT"
+
+      - name: 生成标签
+        id: tag
+        run: echo "tag=$(date -u +%Y%m%d-%H%M)" >> "$GITHUB_OUTPUT"
+
+      - name: 发布到 Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.tag.outputs.tag }}
+          name: AMH 4.2 安装包 ${{ steps.tag.outputs.tag }}
+          body: |
+            由 GitHub Actions 自动打包，共 ${{ steps.listing.outputs.count }} 个包。
+
+            校验：`sha256sum -c SHA256SUMS`
+          files: |
+            dist/*
+          fail_on_unmatched_files: true
+          make_latest: true
+
+      - name: 上传构建产物
+        uses: actions/upload-artifact@v4
+        with:
+          name: amh-packages
+          path: dist/*
+          retention-days: 14

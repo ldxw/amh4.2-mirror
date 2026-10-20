@@ -79,3 +79,14 @@ sha256sum -c SHA256SUMS
 ```sh
 ./unpack.sh    # 把 dist/ 里的包解到 src/，已存在的目录会跳过
 ```
+
+## 自动打包（GitHub Actions）
+
+推到 `main` 后自动跑 `.github/workflows/pack.yml`：
+
+1. 遍历 `src/*/` 全部打包（**新增目录自动包含**，不用改工作流）
+2. 生成 `dist/SHA256SUMS`
+3. 以 `YYYYMMDD-HHMM` 为标签发一个 Release，附件就是全部安装包
+4. 同时上传构建产物（保留 14 天）
+
+也可以手动跑：仓库 → Actions → `pack` → Run workflow。

@@ -1,6 +1,2 @@
-# 解压出来的源码树和打包产物都很大，不进 git；只跟踪脚本和说明
-src/
+# 打包产物不进 git（由 CI 生成并挂到 Release）
 dist/
-*.tar.gz
-*.zip
-*.zip.bf
