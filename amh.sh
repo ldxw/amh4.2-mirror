@@ -346,12 +346,22 @@ function InstallLibiconv()
 
 	if [ ! -d /usr/local/libiconv ]; then
 		cd $AMHDir/packages/untar/$LibiconvVersion;
-		./configure --prefix=/usr/local/libiconv;
-		make;
-		make install;
-		echo "[OK] ${LibiconvVersion} install completed.";
+		if ./configure --prefix=/usr/local/libiconv >/dev/null 2>&1 && make >/dev/null 2>&1 && make install >/dev/null 2>&1; then
+			echo "[OK] ${LibiconvVersion} install completed.";
+		else
+			# glibc 2.28+ 删了 gets()，libiconv 1.14 编不过；系统自带的 iconv 一样能用
+			rm -rf /usr/local/libiconv;
+			echo "[warn] libiconv 编译失败，改用系统自带的 iconv";
+		fi;
 	else
 		echo '[OK] libiconv is installed!';
+	fi;
+
+	# PHP 的 iconv 参数：有独立 libiconv 就用它，否则用 glibc 的
+	if [ -d /usr/local/libiconv ]; then
+		ICONV_OPT='--with-iconv=/usr/local/libiconv';
+	else
+		ICONV_OPT='--with-iconv';
 	fi;
 }
 
@@ -450,7 +460,7 @@ function InstallPhp()
 		groupadd www;
 		useradd -m -s /sbin/nologin -g www www;
 		if [ "$InstallModel" == '1' ]; then
-			./configure --prefix=/usr/local/php --enable-fpm --with-fpm-user=www --with-fpm-group=www --with-config-file-path=/etc --with-config-file-scan-dir=/etc/php.d --with-openssl --with-zlib  --with-curl --enable-ftp --with-gd --with-jpeg-dir --with-png-dir --with-freetype-dir --enable-gd-native-ttf --enable-mbstring --enable-zip --with-iconv=/usr/local/libiconv --with-mysql=mysqlnd --with-mysqli=mysqlnd --with-pdo-mysql=mysqlnd --without-pear $PHPDisable;
+			./configure --prefix=/usr/local/php --enable-fpm --with-fpm-user=www --with-fpm-group=www --with-config-file-path=/etc --with-config-file-scan-dir=/etc/php.d --with-openssl --with-zlib  --with-curl --enable-ftp --with-gd --with-jpeg-dir --with-png-dir --with-freetype-dir --enable-gd-native-ttf --enable-mbstring --enable-zip ${ICONV_OPT} --with-mysql=mysqlnd --with-mysqli=mysqlnd --with-pdo-mysql=mysqlnd --without-pear $PHPDisable;
 		fi;
 		make -j $Cpunum;
 		make install;
@@ -494,7 +504,7 @@ function InstallPhp54()
 	if [ ! -d /usr/local/php5.4 ]; then
 		cd $AMHDir/packages/untar/$Php54Version;
 		if [ "$InstallModel" == '1' ]; then
-			./configure --prefix=/usr/local/php5.4 --enable-fpm --with-fpm-user=www --with-fpm-group=www --with-config-file-path=/usr/local/php5.4/etc --with-config-file-scan-dir=/etc/php.d/5.4 --with-openssl --with-zlib  --with-curl --enable-ftp --with-gd --with-jpeg-dir --with-png-dir --with-freetype-dir --enable-gd-native-ttf --enable-mbstring --enable-zip --with-iconv=/usr/local/libiconv --with-mysql=mysqlnd --with-mysqli=mysqlnd --with-pdo-mysql=mysqlnd --without-pear $PHPDisable;
+			./configure --prefix=/usr/local/php5.4 --enable-fpm --with-fpm-user=www --with-fpm-group=www --with-config-file-path=/usr/local/php5.4/etc --with-config-file-scan-dir=/etc/php.d/5.4 --with-openssl --with-zlib  --with-curl --enable-ftp --with-gd --with-jpeg-dir --with-png-dir --with-freetype-dir --enable-gd-native-ttf --enable-mbstring --enable-zip ${ICONV_OPT} --with-mysql=mysqlnd --with-mysqli=mysqlnd --with-pdo-mysql=mysqlnd --without-pear $PHPDisable;
 		fi;
 		make -j $Cpunum;
 		make install;
@@ -520,7 +530,7 @@ function InstallPhp55()
 	if [ ! -d /usr/local/php5.5 ]; then
 		cd $AMHDir/packages/untar/$Php55Version;
 		if [ "$InstallModel" == '1' ]; then
-			./configure --prefix=/usr/local/php5.5 --enable-fpm --with-fpm-user=www --with-fpm-group=www --with-config-file-path=/usr/local/php5.5/etc --with-config-file-scan-dir=/etc/php.d/5.5 --with-openssl --with-zlib  --with-curl --enable-ftp --with-gd --with-jpeg-dir --with-png-dir --with-freetype-dir --enable-gd-native-ttf --enable-mbstring --enable-zip --with-iconv=/usr/local/libiconv --with-mysql=mysqlnd --with-mysqli=mysqlnd --with-pdo-mysql=mysqlnd --enable-opcache --without-pear $PHPDisable;
+			./configure --prefix=/usr/local/php5.5 --enable-fpm --with-fpm-user=www --with-fpm-group=www --with-config-file-path=/usr/local/php5.5/etc --with-config-file-scan-dir=/etc/php.d/5.5 --with-openssl --with-zlib  --with-curl --enable-ftp --with-gd --with-jpeg-dir --with-png-dir --with-freetype-dir --enable-gd-native-ttf --enable-mbstring --enable-zip ${ICONV_OPT} --with-mysql=mysqlnd --with-mysqli=mysqlnd --with-pdo-mysql=mysqlnd --enable-opcache --without-pear $PHPDisable;
 		fi;
 		make -j $Cpunum;
 		make install;
@@ -546,7 +556,7 @@ function InstallPhp56()
 	if [ ! -d /usr/local/php5.6 ]; then
 		cd $AMHDir/packages/untar/$Php56Version;
 		if [ "$InstallModel" == '1' ]; then
-			./configure --prefix=/usr/local/php5.6 --enable-fpm --with-fpm-user=www --with-fpm-group=www --with-config-file-path=/usr/local/php5.6/etc --with-config-file-scan-dir=/etc/php.d/5.6 --with-openssl --with-zlib  --with-curl --enable-ftp --with-gd --with-jpeg-dir --with-png-dir --with-freetype-dir --enable-gd-native-ttf --enable-mbstring --enable-zip --with-iconv=/usr/local/libiconv --with-mysql=mysqlnd --with-mysqli=mysqlnd --with-pdo-mysql=mysqlnd --enable-opcache --without-pear $PHPDisable;
+			./configure --prefix=/usr/local/php5.6 --enable-fpm --with-fpm-user=www --with-fpm-group=www --with-config-file-path=/usr/local/php5.6/etc --with-config-file-scan-dir=/etc/php.d/5.6 --with-openssl --with-zlib  --with-curl --enable-ftp --with-gd --with-jpeg-dir --with-png-dir --with-freetype-dir --enable-gd-native-ttf --enable-mbstring --enable-zip ${ICONV_OPT} --with-mysql=mysqlnd --with-mysqli=mysqlnd --with-pdo-mysql=mysqlnd --enable-opcache --without-pear $PHPDisable;
 		fi;
 		make -j $Cpunum;
 		make install;
@@ -572,7 +582,7 @@ function InstallPhp70()
 	if [ ! -d /usr/local/php7.0 ]; then
 		cd $AMHDir/packages/untar/$Php70Version;
 		if [ "$InstallModel" == '1' ]; then
-			./configure --prefix=/usr/local/php7.0 --enable-fpm --with-fpm-user=www --with-fpm-group=www --with-config-file-path=/usr/local/php7.0/etc --with-config-file-scan-dir=/etc/php.d/7.0 --with-openssl --with-zlib  --with-curl --enable-ftp --with-gd --with-jpeg-dir --with-png-dir --with-freetype-dir --enable-gd-native-ttf --enable-mbstring --enable-zip --with-iconv=/usr/local/libiconv --with-mysql=mysqlnd --with-mysqli=mysqlnd --with-pdo-mysql=mysqlnd --enable-opcache --without-pear $PHPDisable;
+			./configure --prefix=/usr/local/php7.0 --enable-fpm --with-fpm-user=www --with-fpm-group=www --with-config-file-path=/usr/local/php7.0/etc --with-config-file-scan-dir=/etc/php.d/7.0 --with-openssl --with-zlib  --with-curl --enable-ftp --with-gd --with-jpeg-dir --with-png-dir --with-freetype-dir --enable-gd-native-ttf --enable-mbstring --enable-zip ${ICONV_OPT} --with-mysql=mysqlnd --with-mysqli=mysqlnd --with-pdo-mysql=mysqlnd --enable-opcache --without-pear $PHPDisable;
 		fi;
 		make -j $Cpunum;
 		make install;
