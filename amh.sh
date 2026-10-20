@@ -43,6 +43,10 @@ PACKAGE_REPO='ldxw/amh4.5-mirror';
 PACKAGE_TAG='';
 DOWNLOAD_BASE_URL='';
 
+# 老源码（PHP 5.x / MySQL 5.5）在新 gcc 上要 -fcommon，否则一堆重复符号
+export CFLAGS="${CFLAGS} -O2 -fcommon -Wno-error";
+export CXXFLAGS="${CXXFLAGS} -O2 -fcommon -Wno-error";
+
 # wget 在新 locale 下会改写含签名的下载地址导致 403，能禁 IRI 就禁掉
 WGET_IRI='';
 wget --help 2>/dev/null | grep -q -- '--no-iri' && WGET_IRI='--no-iri';
@@ -51,19 +55,54 @@ wget --help 2>/dev/null | grep -q -- '--no-iri' && WGET_IRI='--no-iri';
 function CheckSystem()
 {
 	[ $(id -u) != '0' ] && echo '[Error] Please use root to install AMH.' && exit;
-	egrep -i "centos" /etc/issue && SysName='centos';
-	egrep -i "debian" /etc/issue && SysName='debian';
-	egrep -i "ubuntu" /etc/issue && SysName='ubuntu';
-	[ "$SysName" == ''  ] && echo '[Error] Your system is not supported install AMH' && exit;
 
-	SysBit='32' && [ `getconf WORD_BIT` == '32' ] && [ `getconf LONG_BIT` == '64' ] && SysBit='64';
-	Cpunum=`cat /proc/cpuinfo | grep 'processor' | wc -l`;
-	RamTotal=`free -m | grep 'Mem' | awk '{print $2}'`;
-	RamSwap=`free -m | grep 'Swap' | awk '{print $2}'`;
+	SysName='';
+	PKG='';
+	OS_ID='';
+	OS_VER='';
+	OS_NAME='';
+
+	if [ -f /etc/os-release ]; then
+		. /etc/os-release;
+		OS_ID="$ID";
+		OS_VER="$VERSION_ID";
+		OS_NAME="$PRETTY_NAME";
+	elif [ -f /etc/redhat-release ]; then
+		OS_ID='centos';
+		OS_NAME=`cat /etc/redhat-release`;
+	elif [ -f /etc/debian_version ]; then
+		OS_ID='debian';
+		OS_NAME="Debian `cat /etc/debian_version`";
+	fi;
+
+	case "$OS_ID" in
+		debian|ubuntu|linuxmint|deepin)
+			SysName='debian';
+			PKG='apt';;
+		centos|rhel|rocky|almalinux|ol|fedora|anolis|openeuler|kylin)
+			SysName='centos';
+			PKG='dnf';;
+		*)
+			echo "[Error] 不支持的系统: ${OS_NAME:-unknown}（支持 Debian/Ubuntu/CentOS/RHEL/Rocky/AlmaLinux/Fedora）";
+			exit 1;;
+	esac;
+
+	# 老系统没有 dnf 就退回 yum
+	if [ "$PKG" == 'dnf' ] && ! command -v dnf >/dev/null 2>&1; then
+		PKG='yum';
+	fi;
+
+	SysBit='32';
+	[ `getconf LONG_BIT` == '64' ] && SysBit='64';
+	Cpunum=`grep -c '^processor' /proc/cpuinfo`;
+	RamTotal=`free -m | awk '/^Mem:/{print $2}'`;
+	RamSwap=`free -m | awk '/^Swap:/{print $2}'`;
+
+	echo " 系统: ${OS_NAME} (${OS_ID} ${OS_VER})";
 	echo "Server ${Domain}";
 	echo "${SysBit}Bit, ${Cpunum}*CPU, ${RamTotal}MB*RAM, ${RamSwap}MB*Swap";
 	echo '================================================================';
-	
+
 	RamSum=$[$RamTotal+$RamSwap];
 	[ "$SysBit" == '32' ] && [ "$RamSum" -lt '250' ] && \
 	echo -e "[Error] Not enough memory install AMH. \n(32bit system need memory: ${RamTotal}MB*RAM + ${RamSwap}MB*Swap > 250MB)" && exit;
@@ -73,7 +112,7 @@ function CheckSystem()
 		[ "$RamSum" -gt '250' ] && echo "[Notice] Please use 32bit system.";
 		exit;
 	fi;
-	
+
 	[ "$RamSum" -lt '600' ] && PHPDisable='--disable-fileinfo';
 }
 
@@ -147,8 +186,13 @@ function Timezone()
 	ln -s /usr/share/zoneinfo/Asia/Shanghai /etc/localtime;
 
 	echo '[ntp Installing] ******************************** >>';
-	[ "$SysName" == 'centos' ] && yum install -y ntp || apt-get install -y ntpdate;
-	ntpdate -u pool.ntp.org;
+	# ntpdate 在很多新系统里已经移除，装不上也不影响安装
+	if [ "$PKG" == 'apt' ]; then
+		apt-get install -y ntpdate >/dev/null 2>&1 || true;
+	else
+		$PKG -y install ntpdate >/dev/null 2>&1 || $PKG -y install chrony >/dev/null 2>&1 || true;
+	fi;
+	command -v ntpdate >/dev/null 2>&1 && ntpdate -u pool.ntp.org >/dev/null 2>&1 || true;
 	StartDate=$(date);
 	StartDateSecond=$(date +%s);
 	echo "Start time: ${StartDate}";
@@ -162,43 +206,56 @@ function CloseSelinux()
 
 function DeletePackages()
 {
+	# 装 AMH 前先清掉系统自带的 web/数据库组件，没有也继续
 	if [ "$SysName" == 'centos' ]; then
-		yum -y remove httpd;
-		yum -y remove php;
-		yum -y remove mysql-server mysql;
-		yum -y remove php-mysql;
+		$PKG -y remove httpd php mysql-server mysql php-mysql >/dev/null 2>&1 || true;
 	else
-		apt-get --purge remove nginx
-		apt-get --purge remove mysql-server;
-		apt-get --purge remove mysql-common;
-		apt-get --purge remove php;
+		apt-get --purge remove -y nginx nginx-common apache2 mysql-server mysql-common php >/dev/null 2>&1 || true;
 	fi;
 }
 
 function InstallBasePackages()
 {
-	if [ "$SysName" == 'centos' ]; then
-		echo '[yum-fastestmirror Installing] ************************************************** >>';
-		yum -y install yum-fastestmirror;
-
-		cp /etc/yum.conf /etc/yum.conf.lnmp
-		sed -i 's:exclude=.*:exclude=:g' /etc/yum.conf
-		for packages in gcc gcc-c++ ncurses-devel libxml2-devel openssl-devel curl-devel libjpeg-devel libpng-devel autoconf pcre-devel libtool-libs freetype-devel gd zlib-devel zip unzip wget crontabs iptables file bison cmake patch mlocate flex diffutils automake make  readline-devel  glibc-devel glibc-static glib2-devel  bzip2-devel gettext-devel libcap-devel logrotate ftp openssl expect; do 
-			echo "[${packages} Installing] ************************************************** >>";
-			yum -y install $packages; 
-		done;
-		mv -f /etc/yum.conf.lnmp /etc/yum.conf;
-	else
-		apt-get remove -y apache2 apache2-doc apache2-utils apache2.2-common apache2.2-bin apache2-mpm-prefork apache2-doc apache2-mpm-worker mysql-client mysql-server mysql-common php;
-		killall apache2;
+	# 现代系统的包名和 2014 年差别很大，这里按发行版分两套
+	if [ "$PKG" == 'apt' ]; then
+		export DEBIAN_FRONTEND=noninteractive;
 		apt-get update;
-		for packages in build-essential gcc g++ cmake make ntp logrotate automake patch autoconf autoconf2.13 re2c wget flex cron libzip-dev libc6-dev rcconf bison cpp binutils unzip tar bzip2 libncurses5-dev libncurses5 libtool libevent-dev libpcre3 libpcre3-dev libpcrecpp0 libssl-dev zlibc openssl libsasl2-dev libxml2 libxml2-dev libltdl3-dev libltdl-dev zlib1g zlib1g-dev libbz2-1.0 libbz2-dev libglib2.0-0 libglib2.0-dev libpng3 libfreetype6 libfreetype6-dev libjpeg62 libjpeg62-dev libjpeg-dev libpng-dev libpng12-0 libpng12-dev curl libcurl3  libpq-dev libpq5 gettext libcurl4-gnutls-dev  libcurl4-openssl-dev libcap-dev ftp openssl expect; do
-			echo "[${packages} Installing] ************************************************** >>";
-			apt-get install -y $packages --force-yes;apt-get -fy install;apt-get -y autoremove; 
+
+		PACKAGES="build-essential gcc g++ make cmake autoconf automake libtool patch pkg-config bison re2c flex
+			wget curl unzip tar bzip2 xz-utils cron logrotate net-tools expect ftp ca-certificates
+			libncurses-dev libxml2-dev libssl-dev libcurl4-openssl-dev libpng-dev libjpeg-dev libfreetype-dev
+			libzip-dev libpcre3-dev zlib1g-dev libbz2-dev libaio-dev libreadline-dev libsqlite3-dev
+			gettext libcap-dev libevent-dev libsasl2-dev";
+
+		for one in $PACKAGES; do
+			if dpkg -s "$one" >/dev/null 2>&1; then
+				continue;
+			fi;
+			echo "[${one} Installing] ************************************************** >>";
+			apt-get install -y "$one" >/dev/null 2>&1 || echo "[warn] ${one} 装不上（可能这个版本没有这个包，继续）";
+		done;
+	else
+		# RHEL 系：CentOS / Rocky / Alma / Fedora
+		if [ "$PKG" == 'dnf' ]; then
+			$PKG -y install epel-release >/dev/null 2>&1;
+			$PKG -y makecache >/dev/null 2>&1;
+		fi;
+
+		PACKAGES="gcc gcc-c++ make cmake autoconf automake libtool patch pkgconfig bison re2c flex
+			wget curl unzip tar bzip2 xz cronie logrotate net-tools expect ftp ca-certificates
+			ncurses-devel libxml2-devel openssl-devel libcurl-devel libpng-devel libjpeg-turbo-devel
+			freetype-devel libzip-devel pcre-devel zlib-devel bzip2-devel libaio-devel readline-devel
+			sqlite-devel gettext libcap-devel libevent-devel cyrus-sasl-devel";
+
+		for one in $PACKAGES; do
+			if rpm -q "$one" >/dev/null 2>&1; then
+				continue;
+			fi;
+			echo "[${one} Installing] ************************************************** >>";
+			$PKG -y install "$one" >/dev/null 2>&1 || echo "[warn] ${one} 装不上（继续）";
 		done;
 	fi;
 }
-
 
 function Downloadfile()
 {
@@ -322,7 +379,8 @@ function InstallMysql()
 		cd $AMHDir/packages/untar/$MysqlVersion;
 		groupadd mysql;
 		useradd -s /sbin/nologin -g mysql mysql;
-		cmake -DCMAKE_INSTALL_PREFIX=/usr/local/mysql  -DDEFAULT_CHARSET=utf8 -DDEFAULT_COLLATION=utf8_general_ci -DWITH_EXTRA_CHARSETS=complex -DWITH_READLINE=1 -DENABLED_LOCAL_INFILE=1;
+		cmake -DCMAKE_INSTALL_PREFIX=/usr/local/mysql  -DDEFAULT_CHARSET=utf8 -DDEFAULT_COLLATION=utf8_general_ci -DWITH_EXTRA_CHARSETS=complex -DWITH_READLINE=1 -DENABLED_LOCAL_INFILE=1 \
+			-DCMAKE_C_FLAGS="$CFLAGS" -DCMAKE_CXX_FLAGS="$CXXFLAGS -std=gnu++98" -DWITH_SSL=yes;
 		#http://forge.mysql.com/wiki/Autotools_to_CMake_Transition_Guide
 		make -j $Cpunum;
 		make install;
@@ -625,7 +683,7 @@ function InstallPureFTPd()
 		/sbin/iptables -I INPUT -p tcp --dport 8888 -j ACCEPT;
 		/sbin/iptables -I INPUT -p tcp --dport 10100:10110 -j ACCEPT;
 		/sbin/iptables-save > /etc/amh-iptables;
-		echo 'IPTABLES_MODULES="ip_conntrack_ftp"' >>/etc/sysconfig/iptables-config;
+		[ -d /etc/sysconfig ] && echo 'IPTABLES_MODULES="ip_conntrack_ftp"' >> /etc/sysconfig/iptables-config || true;
 
 		touch /etc/pureftpd.passwd;
 		chmod 774 /etc/pureftpd.passwd;
@@ -795,10 +853,14 @@ if [ -s /usr/local/nginx ] && [ -s /usr/local/php ] && [ -s /usr/local/mysql ]; 
 cp $AMHDir/conf/amh-start /etc/init.d/amh-start;
 chmod 775 /etc/init.d/amh-start;
 if [ "$SysName" == 'centos' ]; then
-	chkconfig --add amh-start;
-	chkconfig amh-start on;
+	if command -v chkconfig >/dev/null 2>&1; then
+		chkconfig --add amh-start;
+		chkconfig amh-start on;
+	elif command -v systemctl >/dev/null 2>&1; then
+		ln -sf /etc/init.d/amh-start /etc/rc.d/rc3.d/S99amh-start 2>/dev/null || true;
+	fi;
 else
-	update-rc.d -f amh-start defaults;
+	update-rc.d -f amh-start defaults >/dev/null 2>&1 || true;
 fi;
 
 /etc/init.d/amh-start;
