@@ -77,13 +77,16 @@ jobs:
           [ -s /tmp/changes.txt ] || echo '- 重新构建，无代码变更' > /tmp/changes.txt
 
           CHANGED="${{ steps.plan.outputs.dirs }}"
-          [ -z "$CHANGED" ] && CHANGED='（无，全部沿用上一个构建）'
+          if [ -z "$CHANGED" ]; then
+            CHANGED='无（全部沿用上一个构建）'
+          fi
 
           {
             echo "## 本次变更"
             echo ''
             cat /tmp/changes.txt
-            echo ''
+            echo
+            echo
             echo "## 包"
             echo ''
             echo "- 重新打包：${CHANGED}"
