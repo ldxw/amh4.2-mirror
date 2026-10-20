@@ -80,6 +80,26 @@ sha256sum -c SHA256SUMS
 ./unpack.sh    # 把 dist/ 里的包解到 src/，已存在的目录会跳过
 ```
 
+## 安装时选择包版本
+
+`amh.sh` 在确认安装后、开始下载前会列出仓库里可用的构建，供你选择：
+
+```
+ [Packages] 选择要安装的包
+   1) latest               (最新构建，回车默认)
+   2) v1                   (历史构建)
+   3) 20261020-0744        (历史构建)
+ 请选择要安装的包 [1-3, 回车=1]:
+```
+
+- **直接回车** = `latest`
+- 输入编号 = 用那个标签下的包
+- 非交互执行（管道/自动化）自动用 `latest`
+- 想跳过选择：`AMH_PACKAGE=20261020-0744 bash amh.sh`
+
+选完后下载地址变成
+`https://github.com/ldxw/amh4.2-mirror/releases/download/<标签>/`。
+
 ## 自动打包（GitHub Actions）
 
 推到 `main` 后自动跑 `.github/workflows/pack.yml`：

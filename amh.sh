@@ -39,7 +39,9 @@ NginxVersion='nginx-1.9.6';
 OpenSSLVersion='openssl-1.0.2d';
 NginxCachePurgeVersion='ngx_cache_purge-2.3';
 PureFTPdVersion='pure-ftpd-1.0.36';
-DOWNLOAD_BASE_URL='https://github.com/ldxw/amh4.2-mirror/releases/download/latest';
+PACKAGE_REPO='ldxw/amh4.2-mirror';
+PACKAGE_TAG='latest';
+DOWNLOAD_BASE_URL="https://github.com/${PACKAGE_REPO}/releases/download/${PACKAGE_TAG}";
 
 # Function List	*****************************************************************************
 function CheckSystem()
@@ -684,9 +686,68 @@ function InstallAMS()
 }
 
 
+# Choose Packages ****************************************************************************
+function ChoosePackage()
+{
+	echo '';
+	echo '================================================================';
+	echo ' [Packages] 选择要安装的包';
+
+	# 非交互（管道执行）或显式指定时直接用默认/指定的标签
+	if [ -n "$AMH_PACKAGE" ]; then
+		PACKAGE_TAG="$AMH_PACKAGE";
+		echo " [Packages] 使用指定版本: ${PACKAGE_TAG}";
+	elif [ ! -t 0 ]; then
+		echo " [Packages] 非交互运行，使用默认版本: ${PACKAGE_TAG}";
+	else
+		TAGS=('latest');
+
+		listing=`wget -qO- --timeout=10 --tries=1 "https://api.github.com/repos/${PACKAGE_REPO}/releases?per_page=20" 2>/dev/null \
+			| grep -o '"tag_name": *"[^"]*"' | cut -d'"' -f4`;
+		if [ -z "$listing" ]; then
+			listing=`curl -s --max-time 10 "https://api.github.com/repos/${PACKAGE_REPO}/releases?per_page=20" 2>/dev/null \
+				| grep -o '"tag_name": *"[^"]*"' | cut -d'"' -f4`;
+		fi;
+
+		for one in $listing; do
+			[ "$one" == 'latest' ] && continue;
+			TAGS[${#TAGS[@]}]="$one";
+		done;
+
+		i=0;
+		for one in "${TAGS[@]}"; do
+			i=$((i+1));
+			if [ "$one" == 'latest' ]; then
+				printf '  %2d) %-20s %s\n' "$i" "$one" '(最新构建，回车默认)';
+			else
+				printf '  %2d) %-20s %s\n' "$i" "$one" '(历史构建)';
+			fi;
+		done;
+
+		echo '';
+		read -p " 请选择要安装的包 [1-${#TAGS[@]}, 回车=1]: " pick;
+		case "$pick" in
+			''|*[!0-9]*) pick=1;;
+		esac;
+		[ "$pick" -lt 1 ] && pick=1;
+		[ "$pick" -gt "${#TAGS[@]}" ] && pick=1;
+
+		PACKAGE_TAG="${TAGS[$((pick-1))]}";
+	fi;
+
+	DOWNLOAD_BASE_URL="https://github.com/${PACKAGE_REPO}/releases/download/${PACKAGE_TAG}";
+
+	echo " [Packages] 使用: ${PACKAGE_TAG}";
+	echo " [Packages] 下载地址: ${DOWNLOAD_BASE_URL}";
+	echo '================================================================';
+
+	return 0;
+}
+
 # AMH Installing ****************************************************************************
 CheckSystem;
 ConfirmInstall;
+ChoosePackage;
 InputDomain;
 InputMysqlPass;
 InputAMHPass;
