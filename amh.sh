@@ -39,7 +39,7 @@ NginxVersion='nginx-1.9.6';
 OpenSSLVersion='openssl-1.0.2d';
 NginxCachePurgeVersion='ngx_cache_purge-2.3';
 PureFTPdVersion='pure-ftpd-1.0.36';
-DOWNLOAD_BASE_URL='http://file.ldxw.pw/AMH/amhkk4.5';
+DOWNLOAD_BASE_URL='https://github.com/ldxw/amh4.2-mirror/releases/download/latest';
 
 # Function List	*****************************************************************************
 function CheckSystem()

@@ -1,14 +1,8 @@
 name: pack
 
-# 改完 src/ 下的源码推到 main，就自动重新打包并挂到 Release
+# 手动触发。只重打内容有变化的包，全部挂在固定的 latest 标签下，
+# 这样 amh.sh 里的下载地址可以固定不变。
 on:
-  push:
-    branches: [main]
-    paths:
-      - "src/**"
-      - "pack.sh"
-      - "amh.sh"
-      - ".github/workflows/pack.yml"
   workflow_dispatch:
 
 permissions:
@@ -21,42 +15,79 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: 打包 src/ 下的全部目录
+      - name: 取回上次的基线
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if gh release view latest --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release download latest --repo "$GITHUB_REPOSITORY" --pattern manifest.json --clobber || true
+            gh release download latest --repo "$GITHUB_REPOSITORY" --pattern SHA256SUMS --clobber || true
+          fi
+          [ -f manifest.json ] || echo '{}' > manifest.json
+
+      - name: 判断哪些包变了
+        id: plan
+        run: |
+          python3 scripts/pack-plan.py > plan.json
+          cat plan.json
+          echo "dirs=$(python3 -c 'import json;print(" ".join(json.load(open("plan.json"))["dirs"]))')" >> "$GITHUB_OUTPUT"
+          echo "count=$(python3 -c 'import json;print(len(json.load(open("plan.json"))["files"]))')" >> "$GITHUB_OUTPUT"
+          python3 -c 'import json;open("files.txt","w").write("\n".join(json.load(open("plan.json"))["files"]))'
+
+      - name: 重新打包有变化的
+        if: steps.plan.outputs.count != '0'
         run: |
           chmod +x pack.sh
-          # pack.sh 会遍历 src/*/，新增目录自动包含
-          ./pack.sh
+          ./pack.sh ${{ steps.plan.outputs.dirs }}
 
-      - name: 汇总产物
-        id: listing
+      - name: 合并校验和
+        if: steps.plan.outputs.count != '0'
         run: |
-          echo "---- dist ----"
-          ls -lh dist
-          count=$(ls -1 dist | grep -v SHA256SUMS | wc -l)
-          echo "count=$count" >> "$GITHUB_OUTPUT"
+          python3 - <<'PY'
+          import json, os, subprocess
+          plan = json.load(open("plan.json"))
+          sums = {}
+          if os.path.exists("SHA256SUMS"):
+              for line in open("SHA256SUMS"):
+                  line = line.strip()
+                  if not line:
+                      continue
+                  digest, name = line.split(None, 1)
+                  sums[name.strip()] = digest
+          for path in plan["files"]:
+              if not path.startswith("dist/"):
+                  continue
+              name = os.path.basename(path)
+              sums[name] = subprocess.check_output(["sha256sum", path]).decode().split()[0]
+          with open("SHA256SUMS", "w") as fh:
+              for name in sorted(sums):
+                  fh.write(f"{sums[name]}  {name}\n")
+          print(open("SHA256SUMS").read())
+          PY
 
-      - name: 生成标签
-        id: tag
-        run: echo "tag=$(date -u +%Y%m%d-%H%M)" >> "$GITHUB_OUTPUT"
+      - name: 确保 latest 存在
+        if: steps.plan.outputs.count != '0'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release view latest --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1 || \
+            gh release create latest --repo "$GITHUB_REPOSITORY" \
+              --title "AMH 4.2 安装包（最新）" \
+              --notes "手动构建；只重打内容有变化的包，未变化的沿用上一次的附件。
 
-      - name: 发布到 Release
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: ${{ steps.tag.outputs.tag }}
-          name: AMH 4.2 安装包 ${{ steps.tag.outputs.tag }}
-          body: |
-            由 GitHub Actions 自动打包，共 ${{ steps.listing.outputs.count }} 个包。
+          直链：\`https://github.com/${{ github.repository }}/releases/download/latest/<文件名>\`
+          校验：\`sha256sum -c SHA256SUMS\`"
 
-            校验：`sha256sum -c SHA256SUMS`
-          files: |
-            dist/*
-            amh.sh
-          fail_on_unmatched_files: true
-          make_latest: true
+      - name: 上传附件
+        if: steps.plan.outputs.count != '0'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release upload latest $(cat files.txt) manifest.json SHA256SUMS \
+            --repo "$GITHUB_REPOSITORY" --clobber
+          echo "已上传："
+          cat files.txt
 
-      - name: 上传构建产物
-        uses: actions/upload-artifact@v4
-        with:
-          name: amh-packages
-          path: dist/*
-          retention-days: 14
+      - name: 没有变化
+        if: steps.plan.outputs.count == '0'
+        run: echo "所有包都没有变化，跳过打包。"
