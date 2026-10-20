@@ -50,6 +50,7 @@ jobs:
             校验：`sha256sum -c SHA256SUMS`
           files: |
             dist/*
+            amh.sh
           fail_on_unmatched_files: true
           make_latest: true
 
