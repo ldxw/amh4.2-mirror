@@ -18,7 +18,7 @@ Cpunum='';
 RamTotal='';
 RamSwap='';
 InstallModel='';
-Domain=`ifconfig | grep 'inet addr:'| egrep -v ":192\.168|:172\.1[6-9]\.|:172\.2[0-9]\.|:172\.3[0-2]\.|:10\.|:127\." | cut -d: -f2 | awk '{ print $1}'`;
+Domain='';
 MysqlPass='';
 AMHPass='';
 StartDate='';
@@ -143,28 +143,66 @@ function ConfirmInstall()
 	[ "$confirm70" == 'y' ] && echo '[OK] php7.0 will be installed';	
 }
 
-function InputDomain()
-{
-	if [ "$Domain" == '' ]; then
-		echo '[Error] empty server ip.';
-		read -p '[Notice] Please input server ip:' Domain;
-		[ "$Domain" == '' ] && InputDomain;
+  function GetServerIP()
+  {
+	local ip='';
+
+	# 1) 默认路由出口网卡的地址（容器/云主机都准）
+	if command -v ip >/dev/null 2>&1; then
+		ip=`ip -4 route get 1.1.1.1 2>/dev/null | awk '{for(i=1;i<=NF;i++) if($i=="src"){print $(i+1); exit}}'`;
 	fi;
-	[ "$Domain" != '' ] && echo '[OK] Your server ip is:' && echo $Domain;
-}
+
+	# 2) hostname -I
+	if [ -z "$ip" ] && command -v hostname >/dev/null 2>&1; then
+		ip=`hostname -I 2>/dev/null | awk '{print $1}'`;
+	fi;
+
+	# 3) 老式 ifconfig
+	if [ -z "$ip" ] && command -v ifconfig >/dev/null 2>&1; then
+		ip=`ifconfig 2>/dev/null | awk '/inet /{print $2}' | sed 's/addr://' | grep -vE '^127\.' | head -1`;
+	fi;
+
+	# 4) 都不行就问外部服务
+	if [ -z "$ip" ]; then
+		ip=`curl -s --max-time 5 https://api.ipify.org 2>/dev/null`;
+	fi;
+
+	echo "$ip";
+  }
+
+  function InputDomain()
+  {
+	# 环境变量 AMH_IP 优先，其次自动探测，最后才让用户手输
+	if [ -n "$AMH_IP" ]; then
+		Domain="$AMH_IP";
+	elif [ -z "$Domain" ]; then
+		echo '[Notice] 正在自动检测服务器 IP ...';
+		Domain=`GetServerIP`;
+	fi;
+
+	if [ "$Domain" == '' ]; then
+		echo '[Error] 没能自动检测到服务器 IP';
+		read -p '[Notice] 请手动输入服务器 IP:' Domain;
+		[ "$Domain" == '' ] && InputDomain;
+	else
+		echo "[OK] 服务器 IP: ${Domain}";
+	fi;
+  }
 
 
-function InputMysqlPass()
-{
-	read -p '[Notice] Please input MySQL password:' MysqlPass;
+  function InputMysqlPass()
+  {
+	read -p '[Notice] MySQL password (回车 = 自动生成随机密码):' MysqlPass;
+
 	if [ "$MysqlPass" == '' ]; then
-		echo '[Error] MySQL password is empty.';
-		InputMysqlPass;
+		# 16 位大小写字母 + 数字，去掉容易混淆的 0/O/1/l/I
+		MysqlPass=`tr -dc 'A-Za-z0-9' < /dev/urandom | tr -d '0O1lI' | head -c 16`;
+		echo "[OK] 已生成随机 MySQL 密码: ${MysqlPass}";
 	else
 		echo '[OK] Your MySQL password is:';
-		echo $MysqlPass;
+		echo "$MysqlPass";
 	fi;
-}
+  }
 
 
 function InputAMHPass()
