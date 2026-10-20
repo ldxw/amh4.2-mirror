@@ -1,0 +1,5 @@
+# 安装包本体走 Release 附件，不进仓库（避免历史里塞上百 MB 二进制）
+*.tar.gz
+*.zip
+*.zip.bf
+SHA256SUMS
