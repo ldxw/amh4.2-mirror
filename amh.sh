@@ -332,21 +332,30 @@ function Downloadfile()
 	randstr=$(date +%s);
 	cd $AMHDir/packages;
 
-	if [ -s $1 ]; then
-		echo "[OK] $1 found.";
-	else
-		echo "[Notice] $1 not found, download now......";
-		if ! wget -c --tries=3 ${WGET_IRI} ${2}?${randstr} ; then
-			echo "[Error] Download Failed : $1, please check $2 ";
-			exit;
-		else
-			mv ${1}?${randstr} $1;
-		fi;
+	# 已经存在且能正常解开就直接用；否则删掉重下（避免上次中断留下的坏包）
+	if [ -s "$1" ]; then
+		case "$1" in
+			*.tar.gz|*.tgz) tar -tzf "$1" >/dev/null 2>&1 && { echo "[OK] $1 found."; return 0; } ;;
+			*.zip) unzip -t "$1" >/dev/null 2>&1 && { echo "[OK] $1 found."; return 0; } ;;
+			*) echo "[OK] $1 found."; return 0 ;;
+		esac;
+		echo "[warn] $1 不完整，重新下载";
+		rm -f "$1";
+	fi;
+
+	echo "[Notice] $1 not found, download now......";
+	if ! wget -c --tries=3 ${WGET_IRI} -O "$1" "${2}?${randstr}"; then
+		echo "[Error] Download Failed : $1, please check $2 ";
+		exit;
 	fi;
 }
 
 function InstallReady()
 {
+	# 上次失败的残留会污染这次安装（比如旧的 conf/conf 目录、半截 conf.zip）
+	rm -rf $AMHDir/conf $AMHDir/packages/untar;
+	rm -f $AMHDir/packages/conf.zip;
+
 	mkdir -p $AMHDir/conf;
 	mkdir -p $AMHDir/packages/untar;
 	chmod -R u+w $AMHDir/packages;
@@ -355,8 +364,8 @@ function InstallReady()
 	chmod -R u+w /root/amh;
 
 	cd $AMHDir/packages;
-	wget ${WGET_IRI} $DOWNLOAD_BASE_URL/conf.zip;
-	unzip conf.zip -d $AMHDir/conf;
+	wget ${WGET_IRI} --tries=3 -O conf.zip $DOWNLOAD_BASE_URL/conf.zip;
+	unzip -o conf.zip -d $AMHDir/conf >/dev/null;
 }
 
 
